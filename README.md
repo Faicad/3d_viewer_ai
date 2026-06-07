@@ -2,24 +2,39 @@
 
 ## 这是什么
 
-这是一个**基于浏览器的 3D 模型查看器**，支持 29+ 种文件格式，可直接在浏览器中拖放加载和浏览 3D 模型。所有资源离线运行，无需网络。
+这是一个**基于浏览器的 3D 模型查看器**，支持 29+ 种文件格式，通过浏览器加载和浏览 3D 模型。所有资源离线运行，无需网络。
 
-**适用场景**：用户有一个 3D 模型文件（STL/STEP/GLB/OBJ 等），想在浏览器中查看其内容。AI 代理需要启动一个本地 HTTP 服务，打开浏览器，让用户拖入文件即可查看。
+**适用场景**：用户说"查看这个 3D 模型文件"——AI 将文件复制到服务目录 → 启动 HTTP 服务 → 打开浏览器加载模型 → 用户直接看到模型，**无需手动拖入或选择文件**。
 
 ---
 
 ## 快速调用
 
+### 完整流程（推荐）
+
+用户只需说出文件路径，AI 自动完成一切：
+
 ```bash
-# 1. 进入技能目录
-cd skills/3d_viewer
+# 1. 将模型文件复制到服务目录
+mkdir -p skills/3d_viewer/models
+cp /path/to/model.stl skills/3d_viewer/models/
 
-# 2. 启动 HTTP 服务（任选其一）
-npx serve --cors -p 4173 .           # Node.js 方式
-python -m http.server 4173           # Python 方式
+# 2. 启动 HTTP 服务
+npx serve --cors -p 4173 skills/3d_viewer
 
-# 3. 打开浏览器访问 http://localhost:4173
-# 4. 用户拖入模型文件即可查看
+# 3. 打开浏览器，自动加载模型
+#    http://localhost:4173/#/workspace?url=./models/model.stl
+```
+
+用户打开浏览器后即可立刻看到模型，**不需要拖放文件**。
+
+### 仅启动服务（手动拖入备选）
+
+如果只是启动服务让用户自行操作：
+
+```bash
+npx serve --cors -p 4173 skills/3d_viewer
+# 用户访问后手动拖入文件
 ```
 
 ---
@@ -109,7 +124,13 @@ http://localhost:4173/#/workspace?url=<encoded_url>
 ### 第 1 步：确认文件存在
 确认用户提到的模型文件绝对路径存在。
 
-### 第 2 步：启动本地 HTTP 服务
+### 第 2 步：复制文件到服务目录
+```bash
+mkdir -p skills/3d_viewer/models
+cp "/path/to/model.stl" skills/3d_viewer/models/
+```
+
+### 第 3 步：启动本地 HTTP 服务
 ```bash
 npx serve --cors -p 4173 "skills/3d_viewer"
 ```
@@ -121,13 +142,23 @@ python -m http.server 4173 --directory "skills/3d_viewer"
 
 > **注意**：`file://` 协议无法加载 WASM，必须通过 HTTP 服务提供。
 
-### 第 3 步：打开浏览器
-用 AI 的浏览器能力（如 `preview` 工具）打开 `http://localhost:4173`。如果运行在无 GUI 环境，则跳过此步。
+### 第 4 步：打开浏览器自动加载模型
+```bash
+# 构造 URL，带上 ?url= 参数指向服务目录内的模型文件
+http://localhost:4173/#/workspace?url=./models/model.stl
+```
 
-### 第 4 步：指导用户加载模型
-告知用户模型文件的完整绝对路径，用户可以通过拖放或文件选择按钮加载。
+用户打开浏览器后 **立即看到模型**，不需要拖放文件或点击上传。
 
-### 第 5 步：清理
+也可附带其他初始参数：
+```bash
+http://localhost:4173/#/workspace?url=./models/model.stl&theme=dark&lang=zh
+```
+
+### 第 5 步：进一步控制（可选）
+如果 AI 有浏览器 JS 执行能力，可通过 postMessage 发送指令进一步控制查看器（改材质、播放动画、切环境贴图等）。详见 `docs/AI_CONTROL_API.md`。
+
+### 第 6 步：清理
 查看结束后关闭本地 HTTP 服务，释放端口。
 
 ---
