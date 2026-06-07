@@ -61,13 +61,24 @@ python -m http.server 4173           # Python 方式
 
 ---
 
-## 可用参数
+## URL 参数
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `-p` / `--port` | HTTP 服务端口 | `4173` |
-| `--cors` | 启用 CORS（必须开启，否则 WASM 无法加载） | 默认关闭，需显式传入 |
-| `skill_dir` | 技能目录路径 | `skills/3d_viewer/` 的绝对路径 |
+查看器支持通过 URL 查询参数传递配置。URL 格式：
+
+```
+http://localhost:4173/#/workspace?url=<encoded_url>
+```
+
+| 参数 | 说明 | 示例 |
+|------|------|------|
+| `url` | 指定一个远程 3D 模型文件的 URL，查看器打开后自动下载并加载该文件 | `?url=https://example.com/model.stl` |
+
+### `url` 参数说明
+
+- 查看器通过 `fetch()` 下载该 URL 的内容，然后作为文件加载
+- 文件名从 URL 最后一段路径或 `Content-Disposition` 响应头提取
+- 文件格式通过扩展名自动识别
+- 支持所有 [支持的格式](#支持的格式) 中列出的格式
 
 ---
 
