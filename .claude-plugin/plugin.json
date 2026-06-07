@@ -1,0 +1,8 @@
+{
+  "name": "3d_viewer",
+  "version": "1.3.0",
+  "description": "通用3D模型查看器，支持stl、3mf、step、glb、gltf等20多种文件格式。此外还支持dxf、svg等二维图像格式，支持hdr、exr环境贴图。",
+  "author": {
+    "name": "WY"
+  }
+}
