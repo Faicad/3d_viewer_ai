@@ -3,7 +3,7 @@ name: 3d_viewer
 description: >-
   直接在浏览器中查看 3D 模型文件。支持 STL/3MF/STEP/STP/GLB/GLTF/OBJ/PLY/FBX/USDZ 等 29+ 种格式。
   支持通过 ?url= 参数自动加载模型，用户打开页面即可看到模型，无需手动拖放。
-  也支持材质编辑、环境贴图、线框/拓扑叠加、测量、剖切等。
+   也支持材质编辑、环境贴图、线框/拓扑叠加、测量等。
   用户给出一个 3D 模型文件路径时，复制文件到服务目录 → 启动 HTTP 服务 → 打开浏览器自动加载模型。
   触发词：查看这个3D模型, 打开这个STL文件, 浏览STEP模型, 3D模型查看, view this 3D model, open stl file,
   view step model, 3mf viewer, glb viewer.
@@ -13,7 +13,7 @@ compatibility:
   - claude
 metadata:
   formats: "stl,3mf,step,stp,glb,gltf,obj,ply,fbx,usdz,3ds,dae,drc,dxf,svg,hdr,exr"
-  features: "url-auto-load,drag-and-drop,STEP-topology,wireframe,material-editor,environment-maps,measurement,slicing"
+  features: "url-auto-load,drag-and-drop,STEP-topology,wireframe,material-editor,environment-maps,measurement"
 ---
 
 # 3D 模型查看器
@@ -40,22 +40,26 @@ metadata:
 
 ### 第 2 步：复制文件到服务目录
 ```bash
-mkdir -p <skill_dir>/models
 cp "<model_file_path>" <skill_dir>/models/
 ```
 
 ### 第 3 步：启动本地 HTTP 服务
-在这个技能目录下启动一个临时静态文件服务：
 
 ```bash
-# 方法 A：Node.js（推荐）
-npx serve --cors -p 4173 "<skill_dir>"
-
-# 方法 B：Python
-python -m http.server 4173 --directory "<skill_dir>"
+node "<skill_dir>/scripts/serve.mjs"
 ```
 
-> 端口使用 **4173**（与 Vite 开发服务器默认端口一致）。如果被占用则换一个端口并告知用户。
+端口默认 **4173**（`PORT=4174 node ...` 可指定其他端口）。
+
+这个服务同时提供 **HTTP API**，AI 可通过 `curl` 远程控制查看器：
+```bash
+curl -X POST http://localhost:4173/api/command \
+  -H "Content-Type: application/json" \
+  -d '{"type":"3d-viewer","command":"setTheme","params":{"value":"dark"}}'
+```
+浏览器通过 SSE (`/api/events`) 实时接收命令并执行。详见下方第 5 步。
+
+> 如果 `scripts/serve.mjs` 不可用（非 Node.js 环境），也可以用 `npx serve --cors -p 4173` 或 `python -m http.server 4173` 替代——但会失去 HTTP API 远程控制能力。
 
 ### 第 4 步：打开浏览器自动加载模型
 用 opencode/claude 的浏览器打开能力（如 `preview` 工具）打开查看器页面，带上 `?url=` 参数：
@@ -72,9 +76,28 @@ http://localhost:4173/#/workspace?url=./models/<文件名>&theme=dark&lang=zh&en
 ```
 
 ### 第 5 步：进一步控制（可选）
-如果 AI 有浏览器 JS 执行能力，可通过 postMessage 发送指令进一步控制查看器：
-- 改材质、播放动画、切换环境贴图、截屏等
-- 详见项目根目录 `docs/AI_CONTROL_API.md`
+可通过以下方式控制查看器运行时行为：
+
+**方式 A：MCP（推荐——AI 原生调用）**
+MCP（Model Context Protocol）服务器暴露 30+ 个类型化工具，AI 在对话中直接调用（如"把主题调暗"→ 自动调 `set_theme`），无需拼 JSON：
+```bash
+# opencode/Claude Desktop 配置指向此路径
+node "<skill_dir>/scripts/mcp-server.mjs"
+```
+MCP 服务器自动连接运行中的 `serve.mjs`，工具列表见 `docs/AI_CONTROL_API.md`。
+
+**方式 B：HTTP API**
+用 `curl` 向 `serve.mjs` 发命令，通过 SSE 推送到浏览器：
+```bash
+curl -X POST http://localhost:4173/api/command \
+  -H "Content-Type: application/json" \
+  -d '{"type":"3d-viewer","command":"setTheme","params":{"value":"dark"}}'
+```
+
+**方式 C：postMessage（需浏览器 JS 执行能力）**
+```js
+window.postMessage({ type: '3d-viewer', command: 'setTheme', params: { value: 'dark' } }, '*')
+```
 
 ### 第 6 步：清理
 查看结束后，关闭本地 HTTP 服务，释放端口。
@@ -86,10 +109,12 @@ skills/3d_viewer/
 ├── SKILL.md              # 本技能说明
 ├── index.html            # 查看器入口
 ├── step-worker.js        # STEP 转换 Web Worker
+├── scripts/serve.mjs     # 基于 Node.js 的 HTTP 服务 + SSE 桥
+├── scripts/mcp-server.mjs # MCP 协议服务器（AI 原生调用接口）
 ├── assets/               # JavaScript/CSS 资源
 ├── wasm/                 # WebAssembly 模块 (OCCT/Draco/Basis/Rhino3DM)
 ├── env/                  # 环境贴图
-└── models/               # AI 复制的模型文件（临时，gitignore）
+└── models/               # AI 复制模型到此目录
 ```
 
 ## URL 参数
