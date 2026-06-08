@@ -43,11 +43,25 @@ metadata:
 cp "<model_file_path>" <skill_dir>/models/
 ```
 
-### 第 3 步：启动本地 HTTP 服务
 
-```bash
-node "<skill_dir>/scripts/serve.mjs"
+### 第 3 步：启动本地 HTTP 服务（后台运行，禁止设置超时）
+
+根据操作系统选择对应方式：
+
+**Windows：**
+```powershell
+Start-Process -WindowStyle Hidden -FilePath "node" -ArgumentList "<skill_dir>/scripts/serve.mjs"
 ```
+
+**macOS / Linux：**
+```bash
+nohup node "<skill_dir>/scripts/serve.mjs" > /dev/null 2>&1 &
+```
+
+> 无论哪种方式，启动后都应验证端口 4173 是否在监听（如 `netstat -ano | findstr :4173`）。
+
+HTTP 服务是长驻进程，必须在后台启动。**不要**直接在前台运行，否则 bash 超时后会杀死进程。
+
 
 端口默认 **4173**（`PORT=4174 node ...` 可指定其他端口）。
 
@@ -59,7 +73,8 @@ curl -X POST http://localhost:4173/api/command \
 ```
 浏览器通过 SSE (`/api/events`) 实时接收命令并执行。详见下方第 5 步。
 
-> 如果 `scripts/serve.mjs` 不可用（非 Node.js 环境），也可以用 `npx serve --cors -p 4173` 或 `python -m http.server 4173` 替代——但会失去 HTTP API 远程控制能力。
+> 如果 `scripts/serve.mjs` 不可用（非 Node.js 环境），也可以用`python -m http.server 4173` 替代——但会失去 HTTP API 远程控制能力。
+
 
 ### 第 4 步：打开浏览器自动加载模型
 用 opencode/claude 的浏览器打开能力（如 `preview` 工具）打开查看器页面，带上 `?url=` 参数：
