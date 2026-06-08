@@ -54,6 +54,8 @@ jobs:
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y zip
+      - run: npm run package
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
