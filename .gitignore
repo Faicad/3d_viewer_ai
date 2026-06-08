@@ -48,4 +48,4 @@ todo2*.txt
 scripts/time_ci.sh.txt
 ci-logs/
 benchmark/snapshots/*
-skills/3d_viewer/models/*
+# models/box_boss.glb is tracked — used in E2E tests
