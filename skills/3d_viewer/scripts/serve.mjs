@@ -4,7 +4,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const PORT = parseInt(process.env.PORT || '4173', 10)
+const PORT = parseInt(process.env.PORT || '4273', 10)
 const ROOT = path.resolve(process.argv[2] || path.dirname(__dirname))
 
 const MIME = {
@@ -35,11 +35,6 @@ const SSE_HEADERS = {
 
 const sseClients = new Set()
 
-// Pending requests waiting for browser execution results.
-// Key: command id, Value: { resolve, reject, timer }
-const pendingRequests = new Map()
-const REQUEST_TIMEOUT = 30_000
-
 function sendSSE(client, event, data) {
   client.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
 }
@@ -50,8 +45,7 @@ function serveStatic(req, res) {
   const filePath = path.join(ROOT, urlPath)
 
   if (!fs.existsSync(filePath)) {
-    res.writeHead(404)
-    res.end('Not found')
+    console.error(`[serve.mjs] 404: ${req.url} → ${filePath}`)
     return false
   }
 
@@ -81,14 +75,11 @@ const server = http.createServer((req, res) => {
     return
   }
 
-  // ---- AI command endpoint -------------------------------------------
-  // - With "id": synchronous — waits for browser to POST result back
-  // - Without "id": fire-and-forget (backward compatible)
-  // --------------------------------------------------------------------
+  // AI command endpoint
   if (req.url === '/api/command' && req.method === 'POST') {
     let body = ''
     req.on('data', chunk => { body += chunk })
-    req.on('end', async () => {
+    req.on('end', () => {
       let cmd
       try {
         cmd = JSON.parse(body)
@@ -98,71 +89,14 @@ const server = http.createServer((req, res) => {
         return
       }
 
-      if (cmd.id && sseClients.size > 0) {
-        // Synchronous mode: wait for browser to POST /api/result
-        const resultPromise = new Promise((resolve, reject) => {
-          const timer = setTimeout(() => {
-            pendingRequests.delete(cmd.id)
-            reject(new Error(`Command timeout: ${cmd.command}`))
-          }, REQUEST_TIMEOUT)
-          pendingRequests.set(cmd.id, { resolve, reject, timer })
-        })
-
-        let delivered = 0
-        for (const client of sseClients) {
-          sendSSE(client, 'command', cmd)
-          delivered++
-        }
-
-        try {
-          const browserResult = await resultPromise
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ status: 'ok', delivered, result: browserResult }))
-        } catch (err) {
-          res.writeHead(504, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ status: 'error', delivered, error: err.message }))
-        }
-      } else {
-        // Fire-and-forget (backward compatible)
-        let delivered = 0
-        for (const client of sseClients) {
-          sendSSE(client, 'command', cmd)
-          delivered++
-        }
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ status: 'ok', delivered }))
-      }
-    })
-    return
-  }
-
-  // ---- Result callback endpoint --------------------------------------
-  // Browser POSTs execution results here (called from SSE command handler)
-  // --------------------------------------------------------------------
-  if (req.url === '/api/result' && req.method === 'POST') {
-    let body = ''
-    req.on('data', chunk => { body += chunk })
-    req.on('end', () => {
-      let payload
-      try { payload = JSON.parse(body) } catch {
-        res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'Invalid JSON' }))
-        return
+      let delivered = 0
+      for (const client of sseClients) {
+        sendSSE(client, 'command', cmd)
+        delivered++
       }
 
-      const { id, data, error } = payload
-      const pending = pendingRequests.get(id)
-      if (pending) {
-        clearTimeout(pending.timer)
-        pendingRequests.delete(id)
-        if (error) {
-          pending.reject(new Error(error))
-        } else {
-          pending.resolve(data)
-        }
-      }
       res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ status: 'ok' }))
+      res.end(JSON.stringify({ status: 'ok', delivered }))
     })
     return
   }
@@ -185,5 +119,4 @@ server.listen(PORT, () => {
   console.log(`  Serving: ${ROOT}`)
   console.log(`  API:     POST http://localhost:${PORT}/api/command`)
   console.log(`  SSE:     GET  http://localhost:${PORT}/api/events`)
-  console.log(`  Result:  POST http://localhost:${PORT}/api/result`)
 })

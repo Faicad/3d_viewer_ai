@@ -2,7 +2,7 @@
   "name": "3d_viewer",
   "private": true,
   "type": "module",
-  "description": "Faicad 3D Viewer — Claude Code skill deployment",
+  "description": "Faicad 3D Viewer — Skill deployment",
   "scripts": {
     "test": "node skills/3d_viewer/scripts/smoke-test.mjs",
     "test:e2e": "playwright test --config skills/3d_viewer/playwright.config.ts"

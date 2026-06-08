@@ -58,36 +58,36 @@ Start-Process -WindowStyle Hidden -FilePath "node" -ArgumentList "<skill_dir>/sc
 nohup node "<skill_dir>/scripts/serve.mjs" > /dev/null 2>&1 &
 ```
 
-> 无论哪种方式，启动后都应验证端口 4173 是否在监听（如 `netstat -ano | findstr :4173`）。
+> 无论哪种方式，启动后都应验证端口 4273 是否在监听（如 `netstat -ano | findstr :4273`）。
 
 HTTP 服务是长驻进程，必须在后台启动。**不要**直接在前台运行，否则 bash 超时后会杀死进程。
 
 
-端口默认 **4173**（`PORT=4174 node ...` 可指定其他端口）。
+端口默认 **4273**（`PORT=4174 node ...` 可指定其他端口）。
 
 这个服务同时提供 **HTTP API**，AI 可通过 `curl` 远程控制查看器：
 ```bash
-curl -X POST http://localhost:4173/api/command \
+curl -X POST http://localhost:4273/api/command \
   -H "Content-Type: application/json" \
   -d '{"type":"3d-viewer","command":"setTheme","params":{"value":"dark"}}'
 ```
 浏览器通过 SSE (`/api/events`) 实时接收命令并执行。详见下方第 5 步。
 
-> 如果 `scripts/serve.mjs` 不可用（非 Node.js 环境），也可以用`python -m http.server 4173` 替代——但会失去 HTTP API 远程控制能力。
+> 如果 `scripts/serve.mjs` 不可用（非 Node.js 环境），也可以用`python -m http.server 4273` 替代——但会失去 HTTP API 远程控制能力。
 
 
 ### 第 4 步：打开浏览器自动加载模型
 用 opencode/claude 的浏览器打开能力（如 `preview` 工具）打开查看器页面，带上 `?url=` 参数：
 
 ```
-http://localhost:4173/#/workspace?url=./models/<文件名>
+http://localhost:4273/#/workspace?url=./models/<文件名>
 ```
 
 用户打开浏览器后 **立即看到模型**，不需要拖放文件或点击上传。
 
 也可附带其他初始参数：
 ```
-http://localhost:4173/#/workspace?url=./models/<文件名>&theme=dark&lang=zh&env=studio_small_08
+http://localhost:4273/#/workspace?url=./models/<文件名>&theme=dark&lang=zh&env=studio_small_08
 ```
 
 ### 第 5 步：进一步控制（可选）
@@ -104,7 +104,7 @@ MCP 服务器自动连接运行中的 `serve.mjs`，工具列表见 `docs/AI_CON
 **方式 B：HTTP API**
 用 `curl` 向 `serve.mjs` 发命令，通过 SSE 推送到浏览器：
 ```bash
-curl -X POST http://localhost:4173/api/command \
+curl -X POST http://localhost:4273/api/command \
   -H "Content-Type: application/json" \
   -d '{"type":"3d-viewer","command":"setTheme","params":{"value":"dark"}}'
 ```

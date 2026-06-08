@@ -25,7 +25,7 @@
 ```bash
 cp /path/to/model.stl <skill_dir>/models/
 node <skill_dir>/scripts/serve.mjs
-# 打开 http://localhost:4173/#/workspace?url=./models/model.stl
+# 打开 http://localhost:4273/#/workspace?url=./models/model.stl
 ```
 
 详见 [`SKILL.md`](skills/3d_viewer/SKILL.md)。
