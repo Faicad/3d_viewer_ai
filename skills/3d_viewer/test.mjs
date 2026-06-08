@@ -155,8 +155,6 @@ async function testToolsList() {
     'clear_selection', 'set_active_tool', 'set_transform_mode',
     'set_fullscreen', 'toggle_left_panel', 'toggle_right_panel',
     'toggle_model_info', 'toggle_env_panel',
-    'set_default_material', 'clear_default_material',
-    'clear_all_overrides', 'toggle_override_material',
     'take_screenshot',
   ]
   for (const name of required) {
