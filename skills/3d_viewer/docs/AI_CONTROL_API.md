@@ -35,7 +35,7 @@ http://localhost:4273/#/workspace?url=<path>&theme=dark&lang=zh&env=studio
 | `url` | string | 服务目录下的相对路径 | — | 页面加载后自动加载该模型 |
 | `theme` | string | `light` / `dark` / `system` | `system` | 界面主题 |
 | `lang` | string | `zh` / `en` / `es` / `ja` / `ko` / `fr` / `de` / `pt` / `ru` / `ar` / `hi` / `id` / `tr` / `it` / `nl` / `pl` / `vi` / `th` / `uk` / `sv` | 浏览器语言 | 界面语言 |
-| `env` | string | `studio` / `studio_small_08` | `studio` | 环境贴图 |
+| `env` | string | `studio` / `studio_small_08` / 任意 HDR URL | `studio` | 环境贴图。支持 Poly Haven 等支持 CORS 的 CDN 链接，例如 `https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/kloppenheim_02_2k.hdr` |
 
 ---
 
@@ -192,7 +192,6 @@ window.postMessage({
 
 | 命令 | 参数 | 说明 |
 |------|------|------|
-| `setFullscreen` | `{ value: boolean }` | 设置全屏 |
 | `toggleLeftPanel` | — | 切换左侧面板 |
 | `toggleRightPanel` | — | 切换右侧面板 |
 | `toggleModelInfo` | — | 切换模型信息面板 |

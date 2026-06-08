@@ -89,10 +89,15 @@ const server = http.createServer((req, res) => {
         return
       }
 
-      let delivered = 0
+      const delivered = sseClients.size
+      if (delivered === 0) {
+        res.writeHead(503, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ status: 'error', error: 'No connected clients', delivered: 0 }))
+        return
+      }
+
       for (const client of sseClients) {
         sendSSE(client, 'command', cmd)
-        delivered++
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' })
