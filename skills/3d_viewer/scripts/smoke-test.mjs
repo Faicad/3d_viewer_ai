@@ -89,10 +89,14 @@ function createMockViewer() {
           res.end(JSON.stringify({ error: 'Invalid JSON' }))
           return
         }
-        let delivered = 0
+        const delivered = sseClients.size
+        if (delivered === 0) {
+          res.writeHead(503, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ status: 'error', error: 'No connected clients', delivered: 0 }))
+          return
+        }
         for (const client of sseClients) {
           client.write(`event: command\ndata: ${JSON.stringify(cmd)}\n\n`)
-          delivered++
         }
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ status: 'ok', delivered }))
@@ -216,7 +220,7 @@ async function testServeMJS() {
         `SSE content-type text/event-stream (got ${resp.headers.get('content-type')})`)
     }
 
-    // 2d. POST /api/command
+    // 2d. POST /api/command — no SSE client → 503
     {
       const resp = await fetch(`${base}/api/command`, {
         method: 'POST',
@@ -224,11 +228,30 @@ async function testServeMJS() {
         body: JSON.stringify({ type: '3d-viewer', command: 'getTheme', params: {} }),
       })
       const body = await resp.json()
-      assert(resp.status === 200, `POST /api/command status 200 (got ${resp.status})`)
-      assert(body.status === 'ok', `POST /api/command response status ok (got ${body.status})`)
+      assert(resp.status === 503, `POST /api/command (no client) status 503 (got ${resp.status})`)
+      assert(body.status === 'error', `POST /api/command (no client) status error (got ${body.status})`)
+      assert(body.delivered === 0, `POST /api/command (no client) delivered 0 (got ${body.delivered})`)
     }
 
-    // 2e. 404 → SPA fallback
+    // 2e. POST /api/command with SSE client → 200
+    {
+      const ac = new AbortController()
+      const sseResp = await fetch(`${base}/api/events`, { signal: ac.signal })
+      assert(sseResp.status === 200, 'SSE connection established')
+
+      const resp = await fetch(`${base}/api/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: '3d-viewer', command: 'getTheme', params: {} }),
+      })
+      const body = await resp.json()
+      assert(resp.status === 200, `POST /api/command (with client) status 200 (got ${resp.status})`)
+      assert(body.status === 'ok', `POST /api/command (with client) status ok (got ${body.status})`)
+      assert(body.delivered > 0, `POST /api/command (with client) delivered > 0 (got ${body.delivered})`)
+      ac.abort()
+    }
+
+    // 2g. 404 → SPA fallback
     {
       const resp = await fetch(`${base}/nonexistent-route`)
       assert(resp.status === 200, `SPA fallback status 200 (got ${resp.status})`)
@@ -237,7 +260,7 @@ async function testServeMJS() {
         'SPA fallback returns index.html')
     }
 
-    // 2f. Options request
+    // 2h. Options request
     {
       const resp = await fetch(`${base}/api/command`, { method: 'OPTIONS' })
       assert(resp.status === 204, `OPTIONS status 204 (got ${resp.status})`)

@@ -5,7 +5,8 @@
   "description": "Faicad 3D Viewer — Skill deployment",
   "scripts": {
     "test": "node skills/3d_viewer/scripts/smoke-test.mjs",
-    "test:e2e": "playwright test --config skills/3d_viewer/playwright.config.ts"
+    "test:e2e": "playwright test --config skills/3d_viewer/playwright.config.ts",
+    "test:skill-mcp": "node skills/3d_viewer/test.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0"

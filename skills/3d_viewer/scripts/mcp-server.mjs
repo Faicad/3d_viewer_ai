@@ -4,7 +4,8 @@ const VIEWER_URL = process.env.MCP_VIEWER_URL || 'http://localhost:4273'
 
 function postCommand(cmd) {
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ type: '3d-viewer', ...cmd })
+    const id = cmd.id || `mcp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const body = JSON.stringify({ type: '3d-viewer', id, ...cmd })
     const url = new URL('/api/command', VIEWER_URL)
     const req = http.request({
       hostname: url.hostname, port: url.port, path: url.pathname, method: 'POST',
@@ -223,7 +224,8 @@ async function handleMessage(msg) {
           return
         }
         const args = params?.arguments || {}
-        const resp = await postCommand({ command: tool.command, params: args })
+        const cmdId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        const resp = await postCommand({ id: cmdId, command: tool.command, params: args })
         process.stdout.write(jsonrpc(id, {
           content: [{ type: 'text', text: JSON.stringify(resp) }],
         }) + '\n')

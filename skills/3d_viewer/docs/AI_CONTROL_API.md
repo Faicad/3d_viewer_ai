@@ -47,6 +47,14 @@ http://localhost:4273/#/workspace?url=<path>&theme=dark&lang=zh&env=studio
 AI (curl) ──POST /api/command──→ serve.mjs ──SSE──→ 浏览器执行
 ```
 
+### 两种模式
+
+根据是否提供 `id` 字段，API 分两种模式：
+
+#### 模式 A：Fire-and-Forget（无 `id`）
+
+适用于 `setTheme`、`playAnimation`、`toggleLeftPanel` 等**设置类命令**，不关心返回值。
+
 ```bash
 curl -X POST http://localhost:4273/api/command \
   -H "Content-Type: application/json" \
@@ -54,13 +62,33 @@ curl -X POST http://localhost:4273/api/command \
 # 响应: {"status":"ok","delivered":1}
 ```
 
+#### 模式 B：同步等待（有 `id`）
+
+适用于 `getTheme`、`getEnv`、`takeScreenshot` 等**需要浏览器返回数据**的命令。
+
+```bash
+curl -X POST http://localhost:4273/api/command \
+  -H "Content-Type: application/json" \
+  -d '{"type":"3d-viewer","id":"req-001","command":"getTheme","params":{}}'
+# 响应: {"status":"ok","delivered":1,"result":{"theme":"dark"}}
+# 超时（30s）: {"status":"error","delivered":1,"error":"Command timeout: getTheme"}
+```
+
+#### 错误响应
+
+| 状态码 | 条件 | 响应体 |
+|--------|------|--------|
+| 400 | JSON 格式错误 | `{"error":"Invalid JSON"}` |
+| 503 | 无 SSE 客户端连接 | `{"status":"error","error":"No connected clients","delivered":0}` |
+| 504 | 同步模式超时（30s） | `{"status":"error","delivered":N,"error":"Command timeout: <cmd>"}` |
+
 ### 命令格式
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `type` | string | 是 | 固定 `"3d-viewer"` |
 | `command` | string | 是 | 命令名称 |
-| `id` | string | 否 | 请求 ID |
+| `id` | string | 否 | 请求 ID。提供时进入**同步模式**，serve.mjs 等待浏览器回传结果；省略则为 **fire-and-forget** |
 | `params` | object | 否 | 命令参数 |
 
 > 命令列表与 postMessage API 完全一致，见下文。

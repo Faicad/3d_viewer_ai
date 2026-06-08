@@ -35,6 +35,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install chromium
       - run: npm run test:e2e
+      - run: npm run test:skill-mcp
 
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

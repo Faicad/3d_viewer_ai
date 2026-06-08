@@ -1,20 +1,13 @@
 import { spawn } from 'child_process'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { createRequire } from 'module'
+import http from 'http'
+import { chromium } from 'playwright'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const serveScript = join(__dirname, 'scripts', 'serve.mjs')
 const mcpScript = join(__dirname, 'scripts', 'mcp-server.mjs')
 const skillRoot = __dirname
-
-// Skill tests run standalone (no package.json). Resolve playwright from
-// the sibling 3d_viewer_web project where it's already installed.
-const webNodeModules = join(__dirname, '..', '..', '..', '3d_viewer_web', 'node_modules')
-const webRequire = createRequire(join(webNodeModules, 'playwright', 'package.json'))
-async function getPlaywright() {
-  return webRequire('playwright')
-}
 
 // ============================================================
 // Helpers
@@ -53,6 +46,24 @@ function assert(cond, msg) {
   else { failed++; console.log(`  \x1b[31m✗\x1b[0m ${msg}`) }
 }
 
+function httpPost(url, body) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url)
+    const data = JSON.stringify(body)
+    const req = http.request({
+      hostname: u.hostname, port: u.port, path: u.pathname, method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
+    }, res => {
+      let text = ''
+      res.on('data', c => text += c)
+      res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(text) }))
+    })
+    req.on('error', reject)
+    req.write(data)
+    req.end()
+  })
+}
+
 // ============================================================
 // Server lifecycle
 // ============================================================
@@ -68,7 +79,7 @@ async function startServer(port = 4185) {
     proc.stdout.on('data', d => {
       if (d.toString().includes('running')) { clearTimeout(timeout); resolve() }
     })
-    proc.stderr.on('data', () => {}) // silence
+    proc.stderr.on('data', () => {})
   })
 
   return { proc, port }
@@ -103,7 +114,7 @@ async function mcpCall(mcp, toolName, args = {}) {
 async function testMcpHandshake() {
   console.log('\n--- MCP handshake ---')
 
-  const mcp = spawnMcp(4173) // port doesn't matter for init
+  const mcp = spawnMcp(4173)
   const result = collect(mcp, 1)
   send(mcp, { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
   mcp.stdin.end()
@@ -131,11 +142,9 @@ async function testToolsList() {
   assert(Array.isArray(res.result?.tools), 'result.tools is array')
   assert(res.result.tools.length >= 28, `has ${res.result.tools.length} tools (≥28)`)
 
-  // All tools must follow MCP schema
   assert(res.result.tools.every(t => t.name && t.description && t.inputSchema),
     'every tool has name + description + inputSchema')
 
-  // Required tool categories
   const required = [
     'set_theme', 'get_theme',
     'set_language', 'get_language',
@@ -154,7 +163,6 @@ async function testToolsList() {
     assert(res.result.tools.some(t => t.name === name), `has tool: ${name}`)
   }
 
-  // Verify a few parameter schemas
   const setTheme = res.result.tools.find(t => t.name === 'set_theme')
   assert(setTheme.inputSchema.required?.includes('value'), 'set_theme requires value')
   assert(setTheme.inputSchema.properties?.value?.enum?.includes('dark'), 'set_theme accepts dark')
@@ -199,14 +207,16 @@ async function testServerStartsAndServes() {
 
   const server = await startServer()
 
-  // Verify HTTP server is reachable
   const resp = await fetch(`http://localhost:${server.port}/`)
   const html = await resp.text()
   assert(resp.status === 200, `GET / returns 200 (got ${resp.status})`)
   assert(html.includes('<!DOCTYPE html>') || html.includes('<html'), 'response is HTML')
   assert(html.includes('id="root"'), 'HTML contains React mount point')
 
-  // Verify API endpoint exists
+  // Connect SSE first so the API command has a client to deliver to
+  const sseCtrl = new AbortController()
+  await fetch(`http://localhost:${server.port}/api/events`, { signal: sseCtrl.signal })
+
   const apiResp = await fetch(`http://localhost:${server.port}/api/command`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -216,27 +226,23 @@ async function testServerStartsAndServes() {
   assert(apiResp.status === 200, `POST /api/command returns 200`)
   assert(apiJson.status === 'ok', `POST /api/command status: ${apiJson.status}`)
 
+  sseCtrl.abort()
   stopServer(server)
 }
 
 async function testE2EThemeChange() {
   console.log('\n--- E2E: theme change via MCP ---')
-
-  const { chromium } = await getPlaywright()
   const server = await startServer()
 
-  // Open browser to the app
   const browser = await chromium.launch({ headless: true })
   const page = await browser.newPage()
   page.on('pageerror', err => console.log(`  [browser error] ${err.message}`))
 
   await page.goto(`http://localhost:${server.port}/#/workspace`, { waitUntil: 'load', timeout: 15000 })
-  await sleep(2000) // wait for React + SSE
+  await sleep(2000)
 
-  // Spawn MCP
   const mcp = spawnMcp(server.port)
 
-  // Set dark theme
   let res = await mcpCall(mcp, 'set_theme', { value: 'dark' })
   const parsed = JSON.parse(res.result.content[0].text)
   assert(parsed.status === 'ok', `set_theme delivery: ${parsed.status}`)
@@ -245,14 +251,12 @@ async function testE2EThemeChange() {
   const isDark = await page.evaluate(() => document.documentElement.classList.contains('dark'))
   assert(isDark === true, 'browser: dark class applied')
 
-  // Verify sync result contains browser data
   if (parsed.result) {
     assert(parsed.result.command === 'setTheme', 'sync result: command matches')
     assert(parsed.result.status === 'success', 'sync result: browser executed successfully')
     assert(parsed.result.data?.theme === 'dark', 'sync result: browser returned theme=dark')
   }
 
-  // Set light theme
   res = await mcpCall(mcp, 'set_theme', { value: 'light' })
   const p2 = JSON.parse(res.result.content[0].text)
   assert(p2.status === 'ok', 'set_theme light delivery ok')
@@ -268,8 +272,6 @@ async function testE2EThemeChange() {
 
 async function testE2ELanguageChange() {
   console.log('\n--- E2E: language change via MCP ---')
-
-  const { chromium } = await getPlaywright()
   const server = await startServer()
 
   const browser = await chromium.launch({ headless: true })
@@ -280,7 +282,6 @@ async function testE2ELanguageChange() {
 
   const mcp = spawnMcp(server.port)
 
-  // Set English
   let res = await mcpCall(mcp, 'set_language', { value: 'en' })
   const p1 = JSON.parse(res.result.content[0].text)
   assert(p1.status === 'ok', `set_language en: ${p1.status}`)
@@ -289,7 +290,6 @@ async function testE2ELanguageChange() {
   const langEn = await page.evaluate(() => document.documentElement.lang)
   assert(langEn === 'en', `browser: lang = '${langEn}' (expected 'en')`)
 
-  // Set Chinese
   res = await mcpCall(mcp, 'set_language', { value: 'zh' })
   const p2 = JSON.parse(res.result.content[0].text)
   assert(p2.status === 'ok', `set_language zh: ${p2.status}`)
@@ -305,8 +305,6 @@ async function testE2ELanguageChange() {
 
 async function testE2ESyncGetters() {
   console.log('\n--- E2E: sync getters return browser data ---')
-
-  const { chromium } = await getPlaywright()
   const server = await startServer()
 
   const browser = await chromium.launch({ headless: true })
@@ -317,7 +315,6 @@ async function testE2ESyncGetters() {
 
   const mcp = spawnMcp(server.port)
 
-  // get_theme — should return actual browser theme
   let res = await mcpCall(mcp, 'get_theme', {})
   const themeData = JSON.parse(res.result.content[0].text)
   assert(themeData.status === 'ok', `get_theme: delivery ok`)
@@ -329,7 +326,6 @@ async function testE2ESyncGetters() {
     assert(typeof themeData.result.data?.theme === 'string', 'get_theme: theme is string')
   }
 
-  // get_language
   res = await mcpCall(mcp, 'get_language', {})
   const langData = JSON.parse(res.result.content[0].text)
   assert(langData.status === 'ok', 'get_language: delivery ok')
@@ -337,7 +333,6 @@ async function testE2ESyncGetters() {
     assert(typeof langData.result.data?.language === 'string', 'get_language: language is string')
   }
 
-  // get_env
   res = await mcpCall(mcp, 'get_env', {})
   const envData = JSON.parse(res.result.content[0].text)
   assert(envData.status === 'ok', 'get_env: delivery ok')
@@ -352,8 +347,6 @@ async function testE2ESyncGetters() {
 
 async function testE2EErrorRecovery() {
   console.log('\n--- E2E: error recovery ---')
-
-  const { chromium } = await getPlaywright()
   const server = await startServer()
 
   const browser = await chromium.launch({ headless: true })
@@ -363,11 +356,9 @@ async function testE2EErrorRecovery() {
 
   const mcp = spawnMcp(server.port)
 
-  // 1. Unknown tool → error
   let res = await mcpCall(mcp, 'nonexistent_tool', {})
   assert(res.error?.code === -32602, 'unknown tool: error -32602')
 
-  // 2. Valid tool right after → should work
   res = await mcpCall(mcp, 'get_theme', {})
   const data = JSON.parse(res.result.content[0].text)
   assert(data.status === 'ok', 'valid tool after error: still works')
@@ -379,8 +370,6 @@ async function testE2EErrorRecovery() {
 
 async function testE2EMultiCommand() {
   console.log('\n--- E2E: rapid multi-command sequence ---')
-
-  const { chromium } = await getPlaywright()
   const server = await startServer()
 
   const browser = await chromium.launch({ headless: true })
@@ -400,7 +389,7 @@ async function testE2EMultiCommand() {
   let allOk = true
   for (const cmd of commands) {
     const res = await mcpCall(mcp, cmd.tool, cmd.args)
-    if (res.error) { allOk = false; console.log(`  ✗ ${cmd.tool}: ${res.error.message}`) }
+    if (res.error) { allOk = false; console.log(`  \x1b[31m✗\x1b[0m ${cmd.tool}: ${res.error.message}`) }
   }
   assert(allOk, `all ${commands.length} commands executed without error`)
 
@@ -409,6 +398,59 @@ async function testE2EMultiCommand() {
   assert(isDark === true, 'browser: theme is dark after multi-command sequence')
 
   mcp.stdin.end()
+  await browser.close()
+  stopServer(server)
+}
+
+// ============================================================
+// Tests — Part 3: Fire-and-forget vs Sync (direct HTTP API)
+// ============================================================
+
+async function testFireAndForgetMode() {
+  console.log('\n--- HTTP API: fire-and-forget mode (no id) ---')
+  const server = await startServer()
+
+  // Connect SSE so commands can be delivered
+  const sseCtrl = new AbortController()
+  await fetch(`http://localhost:${server.port}/api/events`, { signal: sseCtrl.signal })
+  await sleep(500)
+
+  // POST without id → fire-and-forget, returns immediately
+  const { status, body } = await httpPost(`http://localhost:${server.port}/api/command`, {
+    type: '3d-viewer', command: 'getTheme',
+  })
+  assert(status === 200, `status 200 (got ${status})`)
+  assert(body.status === 'ok', `body.status ok (got ${body.status})`)
+  assert(body.delivered === 1, `delivered 1 (got ${body.delivered})`)
+  assert(body.result === undefined, 'no result field (fire-and-forget)')
+
+  sseCtrl.abort()
+  stopServer(server)
+}
+
+async function testSyncMode() {
+  console.log('\n--- HTTP API: sync mode (with id + browser) ---')
+  const server = await startServer()
+
+  const browser = await chromium.launch({ headless: true })
+  const page = await browser.newPage()
+  await page.goto(`http://localhost:${server.port}/#/workspace`, { waitUntil: 'load', timeout: 15000 })
+  await sleep(2000)
+
+  // POST with id → sync, browser will callback via /api/result
+  const { status, body } = await httpPost(`http://localhost:${server.port}/api/command`, {
+    type: '3d-viewer', id: 'sync-test-001', command: 'getTheme',
+  })
+  assert(status === 200, `status 200 (got ${status})`)
+  assert(body.status === 'ok', `body.status ok (got ${body.status})`)
+  assert(body.delivered >= 1, `delivered >= 1 (got ${body.delivered})`)
+  assert(body.result !== undefined, 'has result field (sync mode)')
+  if (body.result) {
+    assert(body.result.type === '3d-viewer', `result.type = ${body.result.type}`)
+    assert(body.result.command === 'getTheme', `result.command = ${body.result.command}`)
+    assert(body.result.status === 'success', `result.status = ${body.result.status}`)
+  }
+
   await browser.close()
   stopServer(server)
 }
@@ -437,6 +479,10 @@ async function main() {
   await testE2ESyncGetters()
   await testE2EErrorRecovery()
   await testE2EMultiCommand()
+
+  // Part 4: HTTP API modes
+  await testFireAndForgetMode()
+  await testSyncMode()
 
   console.log(`\n${'='.repeat(50)}`)
   console.log(`Results: ${passed} passed, ${failed} failed`)
