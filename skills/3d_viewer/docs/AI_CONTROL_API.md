@@ -35,7 +35,7 @@ http://localhost:4273/#/workspace?url=<path>&theme=dark&lang=zh&env=studio
 | `url` | string | 服务目录下的相对路径 | — | 页面加载后自动加载该模型 |
 | `theme` | string | `light` / `dark` / `system` | `system` | 界面主题 |
 | `lang` | string | `zh` / `en` / `es` / `ja` / `ko` / `fr` / `de` / `pt` / `ru` / `ar` / `hi` / `id` / `tr` / `it` / `nl` / `pl` / `vi` / `th` / `uk` / `sv` | 浏览器语言 | 界面语言 |
-| `env` | string | `studio` / `studio_small_08` / 任意 HDR URL | `studio` | 环境贴图。支持 Poly Haven 等支持 CORS 的 CDN 链接，例如 `https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/kloppenheim_02_2k.hdr` |
+| `env` | string | `studio` / 任意 HDR URL | `studio` | 环境贴图。支持 Poly Haven 等支持 CORS 的 CDN 链接，例如 `https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/kloppenheim_02_2k.hdr` |
 
 ---
 
@@ -47,24 +47,9 @@ http://localhost:4273/#/workspace?url=<path>&theme=dark&lang=zh&env=studio
 AI (curl) ──POST /api/command──→ serve.mjs ──SSE──→ 浏览器执行
 ```
 
-### 两种模式
+### 请求格式
 
-根据是否提供 `id` 字段，API 分两种模式：
-
-#### 模式 A：Fire-and-Forget（无 `id`）
-
-适用于 `setTheme`、`playAnimation`、`toggleLeftPanel` 等**设置类命令**，不关心返回值。
-
-```bash
-curl -X POST http://localhost:4273/api/command \
-  -H "Content-Type: application/json" \
-  -d '{"type":"3d-viewer","command":"setTheme","params":{"value":"dark"}}'
-# 响应: {"status":"ok","delivered":1}
-```
-
-#### 模式 B：同步等待（有 `id`）
-
-适用于 `getTheme`、`getEnv`、`takeScreenshot` 等**需要浏览器返回数据**的命令。
+所有命令**必须携带 `id`**，serve.mjs 等待浏览器回传结果后返回。超时 30 秒。
 
 ```bash
 curl -X POST http://localhost:4273/api/command \
@@ -88,7 +73,7 @@ curl -X POST http://localhost:4273/api/command \
 |------|------|------|------|
 | `type` | string | 是 | 固定 `"3d-viewer"` |
 | `command` | string | 是 | 命令名称 |
-| `id` | string | 否 | 请求 ID。提供时进入**同步模式**，serve.mjs 等待浏览器回传结果；省略则为 **fire-and-forget** |
+| `id` | string | 是 | 请求 ID。serve.mjs 等待浏览器回传结果后同步返回 |
 | `params` | object | 否 | 命令参数 |
 
 > 命令列表与 postMessage API 完全一致，见下文。
@@ -149,7 +134,7 @@ window.postMessage({
 
 | 命令 | 参数 | 说明 |
 |------|------|------|
-| `setEnv` | `{ value: string }` | 切换环境贴图（`studio`、`studio_small_08`、`custom_N`） |
+| `setEnv` | `{ value: string }` | 切换环境贴图（`studio`、`custom_N`、或 HDR URL） |
 | `getEnv` | — | 获取当前环境贴图 ID |
 | `setEnvIntensity` | `{ value: number }` | 设置环境强度 0-5 |
 | `setEnvRotation` | `{ value: number }` | 旋转环境贴图（弧度） |
@@ -159,12 +144,60 @@ window.postMessage({
 
 | 命令 | 参数 | 说明 |
 |------|------|------|
-| `setDefaultMaterial` | `{ appearance: MaterialAppearance }` | 设置全局默认材质 |
-| `clearDefaultMaterial` | — | 清除全局默认材质 |
-| `clearAllOverrides` | — | 清除所有材质覆盖 |
-| `toggleOverrideMaterial` | `{ enabled: boolean }` | 全局开关材质覆盖 |
-| `getMaterialPresets` | — | 获取内置材质预设列表 |
-| `applyMaterialPreset` | `{ name: string }` | 应用内置材质预设 |
+| `getMaterialPresets` | — | 获取所有内置材质预设（名称 → 完整 MaterialAppearance 字典） |
+| `setPartMaterialByPreset` | `{ preset: string, partName?: string }` | 应用内置预设到指定零件。`partName` 省略时按下方定位规则自动选目标 |
+| `setPartMaterial` | `{ appearance: MaterialAppearance, partName?: string }` | 应用自定义材质到指定零件。`partName` 省略时按下方定位规则自动选目标 |
+| `getPartMaterial` | `{ partName?: string }` | 获取指定零件的当前材质状态。`partName` 省略时按下方定位规则自动选目标 |
+
+##### 零件材质定位规则
+
+`partName` 是**场景树中显示的零件名**（`GlbPartInfo.name`）。不传时按以下优先级自动确定目标：
+
+| 优先级 | 条件 | 行为 |
+|--------|------|------|
+| 1 | 指定了 `partName` | 按名称匹配（重名取首个） |
+| 2 | 有选中（`selectedReferenceIds` 非空） | 该节点下所有零件，支持零件/文件/组 |
+| 3 | 未选中 | 当前活跃文件 → 其下所有零件 |
+
+> **提示**：`getModelInfo` 返回每个零件的 `name`（场景树显示名）和 `partId`。
+
+##### 预设 vs 自定义材质
+
+- **`setPartMaterialByPreset`** — 从内置预设库中选择，系统记录该零件使用的是哪个 preset
+- **`setPartMaterial`** — 传入任意 MaterialAppearance，系统标记该零件为"自定义材质"（清掉 preset 引用）
+
+`getPartMaterial` 的返回值会区分这两种情况：
+
+```typescript
+{
+  fileId: "...",
+  parts: [
+    { partId: "...", partName: "Box",
+      override: { name:"Chrome", metalness:1, roughness:0.02, ... },
+      original: { ... },
+      preset: "chrome" },                 // ← 预设名称
+    { partId: "...", partName: "Lid",
+      override: { name:"Chrome", ... },
+      original: { ... },
+      preset: "chrome" },
+  ],
+  partCount: 2
+}
+```
+
+> **建议**：优先使用 `setPartMaterialByPreset`。AI 应先调用 `getMaterialPresets` 了解可用预设（29 个，覆盖金属/塑料/玻璃/橡胶/油漆等），按名字匹配后应用。
+
+##### `getMaterialPresets` 返回结构
+
+```typescript
+{
+  presets: {
+    chrome:        { name:"Chrome",         color:[0.95,0.95,0.96], metalness:1.0, roughness:0.02 },
+    gold:          { name:"Gold",           color:[1.0,0.84,0.0],   metalness:1.0, roughness:0.1 },
+    // ...共 29 个预设
+  }
+}
+```
 
 ##### MaterialAppearance 结构
 

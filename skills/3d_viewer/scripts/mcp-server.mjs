@@ -43,7 +43,7 @@ const TOOLS = [
     command: 'getLanguage',
   },
   {
-    name: 'set_env', description: 'Switch environment map (studio, studio_small_08, custom_N)',
+    name: 'set_env', description: 'Switch environment map (studio, custom_N, or HDR URL)',
     inputSchema: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'] },
     command: 'setEnv',
   },
@@ -73,24 +73,24 @@ const TOOLS = [
     command: 'resetCamera',
   },
   {
-    name: 'set_default_material', description: 'Set global default material',
-    inputSchema: { type: 'object', properties: { appearance: { type: 'object' } }, required: ['appearance'] },
-    command: 'setDefaultMaterial',
-  },
-  {
-    name: 'clear_default_material', description: 'Clear global default material',
+    name: 'get_material_presets', description: 'List all built-in material presets (29 presets: metals, plastics, glass, rubber, paints, etc.)',
     inputSchema: { type: 'object', properties: {} },
-    command: 'clearDefaultMaterial',
+    command: 'getMaterialPresets',
   },
   {
-    name: 'clear_all_overrides', description: 'Clear all material overrides',
-    inputSchema: { type: 'object', properties: {} },
-    command: 'clearAllOverrides',
+    name: 'set_part_material_by_preset', description: 'Apply a built-in material preset to a part. Use get_material_presets first to see available preset names.',
+    inputSchema: { type: 'object', properties: { preset: { type: 'string', description: 'Preset name (camelCase, e.g. "chrome", "clearGlass")' }, partName: { type: 'string', description: 'Target part name. Omit to use selected part or first part.' } }, required: ['preset'] },
+    command: 'setPartMaterialByPreset',
   },
   {
-    name: 'toggle_override_material', description: 'Enable/disable material override',
-    inputSchema: { type: 'object', properties: { enabled: { type: 'boolean' } }, required: ['enabled'] },
-    command: 'toggleOverrideMaterial',
+    name: 'set_part_material', description: 'Apply a custom material to a part. Prefer set_part_material_by_preset when a matching preset exists.',
+    inputSchema: { type: 'object', properties: { appearance: { type: 'object', description: 'MaterialAppearance object' }, partName: { type: 'string', description: 'Target part name. Omit to use selected part or first part.' } }, required: ['appearance'] },
+    command: 'setPartMaterial',
+  },
+  {
+    name: 'get_part_material', description: 'Get current material state of a part (override, original, and preset name if any)',
+    inputSchema: { type: 'object', properties: { partName: { type: 'string', description: 'Target part name. Omit to use selected part or first part.' } } },
+    command: 'getPartMaterial',
   },
   {
     name: 'play_animation', description: 'Play current animation',

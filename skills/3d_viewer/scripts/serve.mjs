@@ -81,8 +81,8 @@ const server = http.createServer((req, res) => {
   }
 
   // ---- AI command endpoint -------------------------------------------
-  // - With "id": synchronous — waits for browser to POST result back
-  // - Without "id": fire-and-forget (backward compatible)
+  // All commands must include an "id" field — synchronous mode.
+  // Commands without "id" are deprecated (response carries a warning).
   // --------------------------------------------------------------------
   if (req.url === '/api/command' && req.method === 'POST') {
     let body = ''
@@ -129,14 +129,18 @@ const server = http.createServer((req, res) => {
           res.end(JSON.stringify({ status: 'error', delivered, error: err.message }))
         }
       } else {
-        // Fire-and-forget (backward compatible)
+        // Fire-and-forget — deprecated, warn AI to use sync mode
         let delivered = 0
         for (const client of sseClients) {
           sendSSE(client, 'command', cmd)
           delivered++
         }
         res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ status: 'ok', delivered }))
+        res.end(JSON.stringify({
+          status: 'ok',
+          delivered,
+          warning: 'Fire-and-forget mode is deprecated. Always include an "id" field in the request to receive the command result synchronously.',
+        }))
       }
     })
     return

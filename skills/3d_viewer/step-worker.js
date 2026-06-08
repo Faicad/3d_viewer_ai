@@ -2,11 +2,26 @@
 // Uses fetch()+eval() to load the OCCT script because importScripts()
 // doesn't route through Electron's protocol.handle for custom schemes.
 
+const OCCT_CDN_BASE = 'https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23';
+
 let occt = null;
 let initPromise = null;
 
+async function fetchWithFallback(localPath, cdnPath) {
+  try {
+    const resp = await fetch(localPath);
+    if (resp.ok) return resp;
+  } catch (_) {
+    // local fetch failed — try CDN below
+  }
+  return fetch(cdnPath);
+}
+
 async function loadOcctScript() {
-  const resp = await fetch('wasm/occt-import-js.cjs');
+  const resp = await fetchWithFallback(
+    'wasm/occt-import-js.cjs',
+    OCCT_CDN_BASE + '/occt-import-js.cjs',
+  );
   const code = await resp.text();
   (0, eval)(code);
 }
@@ -18,7 +33,10 @@ function init() {
   initPromise = (async () => {
     await loadOcctScript();
 
-    const wasmResponse = await fetch('wasm/occt-import-js.wasm');
+    const wasmResponse = await fetchWithFallback(
+      'wasm/occt-import-js.wasm',
+      OCCT_CDN_BASE + '/occt-import-js.wasm',
+    );
     const wasmBinary = await wasmResponse.arrayBuffer();
 
     occt = await self.occtimportjs({ wasmBinary });
