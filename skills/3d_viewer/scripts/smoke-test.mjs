@@ -89,14 +89,10 @@ function createMockViewer() {
           res.end(JSON.stringify({ error: 'Invalid JSON' }))
           return
         }
-        const delivered = sseClients.size
-        if (delivered === 0) {
-          res.writeHead(503, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ status: 'error', error: 'No connected clients', delivered: 0 }))
-          return
-        }
+        let delivered = 0
         for (const client of sseClients) {
           client.write(`event: command\ndata: ${JSON.stringify(cmd)}\n\n`)
+          delivered++
         }
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ status: 'ok', delivered }))
@@ -218,6 +214,7 @@ async function testServeMJS() {
       assert(resp.status === 200, `SSE endpoint status 200 (got ${resp.status})`)
       assert(resp.headers.get('content-type')?.includes('text/event-stream'),
         `SSE content-type text/event-stream (got ${resp.headers.get('content-type')})`)
+      controller.abort()
     }
 
     // 2d. POST /api/command — no SSE client → 503
