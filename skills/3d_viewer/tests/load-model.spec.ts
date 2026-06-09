@@ -37,6 +37,8 @@ test.describe('Skill deployment — model loading', () => {
   })
 
   test('returns 503 when no SSE client is connected', async ({ page }) => {
+    await page.goto('about:blank')
+    await page.waitForTimeout(500)
     const resp = await page.request.post('http://localhost:4273/api/command', {
       data: { type: '3d-viewer', command: 'getTheme', params: {} },
     })

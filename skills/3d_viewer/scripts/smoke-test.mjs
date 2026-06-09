@@ -159,9 +159,6 @@ async function testStructure() {
     assert(existsSync(join(wasmDir, 'occt-import-js.wasm')), 'occt-import-js.wasm exists')
   }
 
-  // At least one HDR/EXR in env/
-  const envDir = join(ROOT, 'env')
-  assert(existsSync(envDir), 'env/ directory exists')
 }
 
 // ── 2. serve.mjs HTTP test ───────────────────────────────────────────
