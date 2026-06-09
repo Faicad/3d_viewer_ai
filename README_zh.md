@@ -21,6 +21,28 @@
 - **深色/浅色主题**、**中英文界面**
 - **4 种显示模式**：实体 / 线框 / 实体+线框 / 三角网格
 
+
+
+## 安装
+
+```bash
+npx skills add Faicad/3d_viewer
+```
+
+To update to the latest version later:
+
+```bash
+npx skills update
+```
+
+Or use it as a Claude Code plugin marketplace:
+
+```
+/plugin marketplace add Faicad/3d_viewer
+/plugin install 3d_viewer
+```
+
+
 ## 完整流程
 
 ```bash

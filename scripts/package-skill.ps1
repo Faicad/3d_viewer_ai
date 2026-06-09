@@ -12,8 +12,7 @@ $excludePatterns = @(
     'test.mjs',
     'playwright.config.ts',
     'scripts\smoke-test.mjs',
-    'wasm\occt-import-js.cjs',
-    'wasm\occt-import-js.wasm'
+    'wasm\*'
 )
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem

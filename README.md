@@ -23,6 +23,28 @@ When users say "view this 3D model file" — AI handles it automatically.
 - **Dark/Light Theme**, **Chinese/English UI**
 - **4 Display Modes**: Solid / Wireframe / Solid+Wireframe / Triangle Mesh
 
+
+## Install
+
+```bash
+npx skills add Faicad/3d_viewer
+```
+
+To update to the latest version later:
+
+```bash
+npx skills update
+```
+
+Or use it as a Claude Code plugin marketplace:
+
+```
+/plugin marketplace add Faicad/3d_viewer
+/plugin install 3d_viewer
+```
+
+Once installed, the skill activates on its trigger words, and other agents can also invoke it to generate these pages.
+
 ## Full Workflow
 
 ```bash
