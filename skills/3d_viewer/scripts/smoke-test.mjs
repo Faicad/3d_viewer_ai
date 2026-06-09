@@ -159,8 +159,9 @@ async function testStructure() {
     assert(existsSync(join(wasmDir, 'occt-import-js.wasm')), 'occt-import-js.wasm exists')
   }
 
-  // env/ directory is optional (removed for size optimization; env maps
-  // can be loaded via custom upload or URL through the UI / MCP tools)
+  // At least one HDR/EXR in env/
+  const envDir = join(ROOT, 'env')
+  assert(existsSync(envDir), 'env/ directory exists')
 }
 
 // ── 2. serve.mjs HTTP test ───────────────────────────────────────────

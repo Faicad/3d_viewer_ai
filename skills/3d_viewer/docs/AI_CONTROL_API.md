@@ -232,6 +232,7 @@ window.postMessage({
 | `selectAnimation` | `{ index: number }` | 选择第 N 个动画片段（从 0 开始） |
 | `seek` | `{ time: number }` | 跳转到指定时间点（秒） |
 | `setSpeed` | `{ value: number }` | 设置播放速度倍数 |
+| `setAnimationMaximized` | `{ value: boolean }` | 最大化/还原动画窗口 |
 
 #### 相机
 
