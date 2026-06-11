@@ -73,6 +73,16 @@ const TOOLS = [
     command: 'resetCamera',
   },
   {
+    name: 'set_camera_position', description: 'Set camera position and target',
+    inputSchema: { type: 'object', properties: { position: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3, description: 'Camera position [x, y, z]' }, target: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3, description: 'Look-at target [x, y, z]' } }, required: ['position'] },
+    command: 'setCameraPosition',
+  },
+  {
+    name: 'zoom_to_fit', description: 'Zoom camera to fit all visible geometry',
+    inputSchema: { type: 'object', properties: { padding: { type: 'number', description: 'Padding factor (default 1.5)' } } },
+    command: 'zoomToFit',
+  },
+  {
     name: 'get_material_presets', description: 'List all built-in material presets (29 presets: metals, plastics, glass, rubber, paints, etc.)',
     inputSchema: { type: 'object', properties: {} },
     command: 'getMaterialPresets',
@@ -166,6 +176,16 @@ const TOOLS = [
     name: 'take_screenshot', description: 'Capture current viewport as base64 PNG',
     inputSchema: { type: 'object', properties: {} },
     command: 'takeScreenshot',
+  },
+  {
+    name: 'load_model', description: 'Load a 3D model from URL into the viewer',
+    inputSchema: { type: 'object', properties: { url: { type: 'string', description: 'URL of the 3D model file (GLB, glTF, STEP, STL, OBJ, etc.)' }, data: { type: 'string', description: 'Base64 data URL of the model file' } }, anyOf: [{ required: ['url'] }, { required: ['data'] }] },
+    command: 'loadModel',
+  },
+  {
+    name: 'reset_viewer', description: 'Clear all loaded models and reset viewer to initial state',
+    inputSchema: { type: 'object', properties: {} },
+    command: 'resetViewer',
   },
 ]
 
