@@ -24,6 +24,20 @@
  *
  * 5. 爆炸距离改用轴上包围盒跨度 × 倍率替代摄像机视口计算
  *    修复: axisModelRange × multiplier (1× = 不分开, 2× = 2倍包围盒)
+ *
+ * 6. Spread 滑块无效 — pivot 位置 ≈ 0，乘任何倍率都看不到变化
+ *    getVisibleRangeOnAxis 用 proxy.position（局部 pivot 位置），
+ *    GLB 所有 mesh pivot 都在原点附近 → axisModelRange ≈ 0 → spread 永远是 0。
+ *    修复: computeTargets 改用 Box3.setFromObject(mesh).getCenter()
+ *    获取每个零件的几何体世界中心来计算 offset。
+ *    offset = (worldGeomCenter - worldCenterOfMass) × (multiplier - 1)
+ *    1×: offset=0 无变化, 2×: spread 翻倍, 3×: spread 三倍。
+ *
+ * 7. 跨 demo 位置干扰 — 先执行 explode 再执行 assemble，
+ *    buildExplode / captureParts 捕获的是前一个 demo 修改后的位置。
+ *    修复: 增加 resetPartsPosition()，首次调用时缓存所有零件原始 position
+ *    到 window.__gsap_initial_positions，后续 demo 开始前恢复。
+ * ────────────────────────────────────────────────
  */
 
 import { fileURLToPath } from 'url'
@@ -36,76 +50,88 @@ export const GSAP_EXPLODE_DEMO_HTML = `<div id="gsap-panel">
       <input type="range" id="scrub" min="0" max="1000" value="0">
       <span class="time-label" id="time-label">0.00s / 0.00s</span>
     </div>
-  </div>
-  <hr class="sep-line">
-  <div class="params-grid">
-    <label>Axis</label>
-    <select class="ctrl-select" id="axis-select">
+    <label>轴</label>
+    <select class="ctrl-select" id="axis-select" style="max-width:40px">
       <option value="x">X</option>
       <option value="y">Y</option>
       <option value="z" selected>Z</option>
     </select>
-    <span></span>
-    <label>Easing</label>
+    <label>运动</label>
     <select class="ctrl-select" id="easing-select">
-      <option value="back.out(1.7)">back.out(1.7) — 微回弹</option>
-      <option value="back.out(2.5)">back.out(2.5) — 强回弹</option>
-      <option value="elastic.out(1,0.2)">elastic.out — 弹簧震荡</option>
-      <option value="bounce.out">bounce.out — 弹跳</option>
-      <option value="power3.out" selected>power3.out — 平滑缓出</option>
-      <option value="expo.out">expo.out — 指数缓出</option>
-      <option value="power3.inOut">power3.inOut — 缓入缓出</option>
-      <option value="none">none — 线性</option>
+      <option value="back.out(1.7)">微回弹</option>
+      <option value="back.out(2.5)">强回弹</option>
+      <option value="elastic.out(1,0.2)">弹簧震荡</option>
+      <option value="bounce.out">弹跳</option>
+      <option value="power3.out" selected>平滑缓出</option>
+      <option value="expo.out">指数缓出</option>
+      <option value="power3.inOut">缓入缓出</option>
+      <option value="none">线性</option>
     </select>
-    <span></span>
-    <label>Duration</label>
+  </div>
+  <div class="ctrl-row">
+    <label>时长</label>
     <input type="range" id="dur-slider" min="0.3" max="5" step="0.1" value="1.5">
     <span class="value" id="dur-val">1.5s</span>
-    <span></span>
-    <label>Spread</label>
+    <label>扩散</label>
     <input type="range" id="spread-slider" min="1" max="3" step="0.1" value="2">
     <span class="value" id="spread-val">2.0×</span>
-  </div>
-  <div class="ctrl-row" style="justify-content:space-between;">
-    <span id="part-info">0 parts</span>
   </div>
 </div>`
 
 export const GSAP_EXPLODE_DEMO_CSS = `#gsap-panel {
-  position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
-  background: rgba(13,13,26,0.92); backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
-  padding: 14px 20px; min-width: 400px;
-  display: flex; flex-direction: column; gap: 8px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+  background: rgba(13,13,26,0.6); backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.05); border-radius: 8px;
+  padding: 5px 8px; min-width: 260px;
+  display: flex; flex-direction: column; gap: 3px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35);
   font-family: 'Segoe UI', system-ui, sans-serif; color: #ccc;
   pointer-events: auto;
 }
-#gsap-panel .ctrl-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#gsap-panel .ctrl-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 #gsap-panel .ctrl-row label { font-size: 11px; color: #888; white-space: nowrap; }
-#gsap-panel .ctrl-row .value { font-size: 11px; color: #88cc44; font-weight: 600; min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
-#gsap-panel .btn-icon { width: 34px; height: 34px; border-radius: 8px; border: none; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+#gsap-panel .ctrl-row .value { font-size: 11px; color: #88cc44; font-weight: 600; min-width: 24px; text-align: right; font-variant-numeric: tabular-nums; }
+#gsap-panel .btn-icon { width: 24px; height: 24px; border-radius: 5px; border: none; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
 #gsap-panel .btn-play { background: #88cc44; color: #0d0d1a; }
 #gsap-panel .btn-play:hover { background: #a0e060; }
 #gsap-panel .btn-play.paused { background: #ff8844; }
 #gsap-panel .btn-play.paused:hover { background: #ffaa66; }
 #gsap-panel .btn-icon.secondary { background: rgba(255,255,255,0.08); color: #ccc; }
 #gsap-panel .btn-icon.secondary:hover { background: rgba(255,255,255,0.15); }
-#gsap-panel .sep-line { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 0; }
-#gsap-panel .scrub-wrap { display: flex; align-items: center; gap: 10px; flex: 1; }
-#gsap-panel .time-label { font-size: 11px; color: #888; min-width: 100px; text-align: right; font-variant-numeric: tabular-nums; }
-#gsap-panel input[type="range"] { flex: 1; min-width: 60px; height: 4px; -webkit-appearance: none; appearance: none; background: rgba(255,255,255,0.12); border-radius: 2px; outline: none; cursor: pointer; }
-#gsap-panel input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #88cc44; cursor: pointer; border: 2px solid #0d0d1a; transition: transform 0.1s; }
-#gsap-panel input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
-#gsap-panel input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #88cc44; cursor: pointer; border: 2px solid #0d0d1a; }
-#gsap-panel .ctrl-select { padding: 4px 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); color: #ccc; font-size: 11px; outline: none; cursor: pointer; }
+#gsap-panel .sep-line { border: none; border-top: 1px solid rgba(255,255,255,0.04); margin: 1px 0; }
+#gsap-panel .scrub-wrap { display: flex; align-items: center; gap: 4px; flex: 1; }
+#gsap-panel .scrub-wrap input[type="range"] { max-width: none; }
+#gsap-panel .time-label { font-size: 11px; color: #888; min-width: 65px; text-align: right; font-variant-numeric: tabular-nums; }
+#gsap-panel input[type="range"] { flex: 1; min-width: 40px; height: 3px; -webkit-appearance: none; appearance: none; background: rgba(255,255,255,0.12); border-radius: 2px; outline: none; cursor: pointer; }
+#gsap-panel input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #88cc44; cursor: pointer; border: 2px solid #0d0d1a; }
+#gsap-panel input[type="range"]::-moz-range-thumb { width: 10px; height: 10px; border-radius: 50%; background: #88cc44; cursor: pointer; border: 2px solid #0d0d1a; }
+#gsap-panel .ctrl-select { padding: 2px 4px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); color: #ccc; font-size: 11px; outline: none; cursor: pointer; max-width: 56px; }
 #gsap-panel .ctrl-select:focus { border-color: #88cc44; }
-#gsap-panel .params-grid { display: grid; grid-template-columns: auto 1fr auto auto 1fr auto; gap: 4px 8px; width: 100%; align-items: center; }
-#gsap-panel #part-info { font-size: 11px; color: #555; white-space: nowrap; }`
+`
 
 export const GSAP_EXPLODE_DEMO_JS = `;(function() {
   var gsap = window.__gsap, THREE = window.__THREE, api = window.viewerAPI || window.__viewerAPI;
   if (!gsap || !THREE || !api) { console.error('[gsap-explode] Missing dependencies'); return }
+
+  // ---- Cross-demo position reset ----
+  function resetPartsPosition() {
+    var saved = window.__gsap_initial_positions;
+    if (saved) {
+      var all = api.getParts();
+      for (var i = 0; i < all.length; i++) {
+        var s = saved[all[i].partId];
+        if (s) { var p = api.getPartProxy(all[i].partId); if (p) p.position.set(s[0], s[1], s[2]) }
+      }
+    } else {
+      window.__gsap_initial_positions = {};
+      var all = api.getParts();
+      for (var i = 0; i < all.length; i++) {
+        var p = api.getPartProxy(all[i].partId);
+        if (p) window.__gsap_initial_positions[all[i].partId] = [p.position.x, p.position.y, p.position.z]
+      }
+    }
+  }
+
   var parts = [], timeline = null, isPlaying = false;
 
   function findMeshByPartId(partId) {
@@ -116,95 +142,81 @@ export const GSAP_EXPLODE_DEMO_JS = `;(function() {
     return found;
   }
 
-  // ---- Range computation ----
-  // Spread = model's largest bounding-box dimension × slider (1–5×, centered on model midpoint)
-
-  function getVisibleRangeOnAxis(axis, positions) {
-    var multiplier = parseFloat(document.getElementById('spread-slider').value);
-    var minVal = Infinity, maxVal = -Infinity;
-    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    for (var i = 0; i < positions.length; i++) {
-      var p = positions[i];
-      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-      if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
-      if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
-      if (p[axis] < minVal) minVal = p[axis]; if (p[axis] > maxVal) maxVal = p[axis];
-    }
-    var axisModelRange = maxVal - minVal;
-    var maxAxisRange = Math.max(maxX - minX || 0, maxY - minY || 0, maxZ - minZ || 0) || 1;
-    // 1×: axisModelRange (no visible change)
-    // >1×: axisModelRange × multiplier + progressive floor based on model's largest dimension
-    //   so flat axes still get visible explosion at higher multipliers
-    var base = axisModelRange || (multiplier > 1 ? maxAxisRange : 0);
-    var progressive = maxAxisRange * Math.max(0, multiplier - 1) * 0.3;
-    var range = base * multiplier + progressive;
-    var mid = (minVal + maxVal) / 2;
-    // padding: 10% margin at >1× to keep extreme parts off the spread boundary; 0 at 1× for no effect
-    var padding = multiplier > 1 ? 0.1 : 0;
-    return { min: mid - range/2, max: mid + range/2, range: range, padding: padding };
-  }
+  // Spread offset = (worldGeomCenter - worldCenterOfMass) × (multiplier - 1)
+  // 1× = no offset (parts stay at original position), 2× = double the original spread
 
   function buildExplode() {
+    resetPartsPosition();
     if (timeline) { timeline.progress(0).kill(); timeline = null }
     isPlaying = false;
     var btnPlay = document.getElementById('btn-play');
     btnPlay.textContent = '▶'; btnPlay.classList.remove('paused');
     var partInfos = api.getParts();
-    if (!partInfos || !partInfos.length) { document.getElementById('part-info').textContent = '0 parts — 请先加载模型'; return }
+    if (!partInfos || !partInfos.length) { return }
     var localPositions = [], partIds = [];
     for (var i = 0; i < partInfos.length; i++) {
       var info = partInfos[i], proxy = api.getPartProxy(info.partId);
       if (!proxy) continue;
       localPositions.push(proxy.position.clone()); partIds.push(info.partId);
     }
-    if (!partIds.length) { document.getElementById('part-info').textContent = '0 parts — 未找到零件'; return }
     console.log('[gsap-explode] parts:', partIds.length, 'first:', partIds[0], 'pos:', localPositions[0].x.toFixed(3), localPositions[0].y.toFixed(3), localPositions[0].z.toFixed(3), 'last:', partIds[partIds.length-1], 'pos:', localPositions[localPositions.length-1].x.toFixed(3), localPositions[localPositions.length-1].y.toFixed(3), localPositions[localPositions.length-1].z.toFixed(3))
     var _cam = window.__r3f_dev && window.__r3f_dev.camera;
     console.log('[gsap-explode] camera:', !!_cam, _cam ? 'pos: ' + [_cam.position.x.toFixed(2), _cam.position.y.toFixed(2), _cam.position.z.toFixed(2)].join(',') : 'null', _cam ? 'fov: ' + _cam.fov : '')
     computeTargets(partIds, localPositions, partInfos);
-    document.getElementById('part-info').textContent = parts.length + ' parts';
     buildTimeline();
   }
 
   function computeTargets(partIds, localPositions, partInfos) {
     var axis = document.getElementById('axis-select').value;
-    var vr = getVisibleRangeOnAxis(axis, localPositions);
-    var p = vr.padding || 0;
-    var spreadMin = vr.min + vr.range * p, spreadMax = vr.max - vr.range * p;
-    if (spreadMin > spreadMax) { var _t = spreadMin; spreadMin = spreadMax; spreadMax = _t }
+    var multiplier = parseFloat(document.getElementById('spread-slider').value);
 
-    console.log('[gsap-explode] axis:', axis, 'vr:', (vr.min).toFixed(2), (vr.max).toFixed(2), (vr.range).toFixed(2), 'spread:', (spreadMin).toFixed(2), (spreadMax).toFixed(2))
+    // Compute world geometric centers via Box3 (geometry-aware, not pivot positions)
+    var worldPositions = [];
+    for (var i = 0; i < partInfos.length; i++) {
+      var mesh = findMeshByPartId(partInfos[i].partId);
+      if (mesh) {
+        var box = new THREE.Box3().setFromObject(mesh);
+        worldPositions.push(box.getCenter(new THREE.Vector3()));
+      } else {
+        worldPositions.push(localPositions[i].clone());
+      }
+    }
 
+    // Sort by world position on chosen axis
     var indexed = [];
-    for (var i = 0; i < partIds.length; i++) indexed.push({ idx: i, axisVal: localPositions[i][axis] });
-    indexed.sort(function(a, b) { return a.axisVal - b.axisVal });
-    var N = indexed.length, centerIdx = Math.floor(N / 2);
-    var centerVal = indexed[centerIdx].axisVal;
-    var origMin = indexed[0].axisVal, origMax = indexed[N - 1].axisVal;
+    for (var i = 0; i < partIds.length; i++) indexed.push({ idx: i, wVal: worldPositions[i][axis] });
+    indexed.sort(function(a, b) { return a.wVal - b.wVal });
 
-    console.log('[gsap-explode] orig:', (origMin).toFixed(3), (origMax).toFixed(3), 'center:', (centerVal).toFixed(3))
+    var N = indexed.length, worldMin = indexed[0].wVal, worldMax = indexed[N - 1].wVal;
+    var worldRange = worldMax - worldMin, worldCenter = (worldMin + worldMax) / 2;
+
+    // Overall model bounding box (for fallback when all parts share same position)
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (var i = 0; i < worldPositions.length; i++) {
+      var p = worldPositions[i];
+      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+      if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
+    }
+    var modelDiagonal = Math.max(maxX - minX || 0, maxY - minY || 0, maxZ - minZ || 0) || 1;
+
+    console.log('[gsap-explode] axis:', axis, 'multiplier:', multiplier, 'worldCenter:', worldCenter.toFixed(3), 'worldRange:', worldRange.toFixed(3), 'modelDiagonal:', modelDiagonal.toFixed(3));
 
     parts = [];
     for (var si = 0; si < N; si++) {
       var k = indexed[si].idx, lPos = localPositions[k], target = lPos.clone();
-      if (origMin === origMax) {
+      var offset;
+      if (worldRange < 0.001) {
         var partCount = N - 1 || 1;
-        target[axis] = spreadMin + (si / partCount) * (spreadMax - spreadMin);
-        parts.push({ partId: partIds[k], proxy: api.getPartProxy(partIds[k]), localPos: lPos, target: target, name: partInfos[k].name });
-        continue;
+        offset = ((si / partCount) - 0.5) * modelDiagonal * Math.max(0, multiplier - 1);
+      } else {
+        offset = (worldPositions[k][axis] - worldCenter) * Math.max(0, multiplier - 1);
       }
-      if (lPos[axis] < centerVal) {
-        var t = origMin === centerVal ? 0 : (lPos[axis] - origMin) / (centerVal - origMin);
-        target[axis] = spreadMin + t * (centerVal - spreadMin);
-      } else if (lPos[axis] > centerVal) {
-        var t = origMax === centerVal ? 0 : (lPos[axis] - centerVal) / (origMax - centerVal);
-        target[axis] = centerVal + t * (spreadMax - centerVal);
-      }
-      // else: lPos[axis] === centerVal → stays at center
+      target[axis] = lPos[axis] + offset;
       parts.push({ partId: partIds[k], proxy: api.getPartProxy(partIds[k]), localPos: lPos, target: target, name: partInfos[k].name });
     }
 
-    console.log('[gsap-explode] first 3 targets:', parts.slice(0,3).map(function(p) { return (p.target[axis]).toFixed(3) }).join(', '), 'last 3:', parts.slice(-3).map(function(p) { return (p.target[axis]).toFixed(3) }).join(', '))
+    console.log('[gsap-explode] first 3 targets:', parts.slice(0, 3).map(function(p) { return (p.target[axis]).toFixed(3) }).join(', '), 'last 3:', parts.slice(-3).map(function(p) { return (p.target[axis]).toFixed(3) }).join(', '));
   }
 
   function buildTimeline() {

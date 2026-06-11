@@ -234,6 +234,14 @@ window.postMessage({
 
 #### 动画控制
 
+GLB 文件内置的骨骼/变形动画（如产品演示动画、角色动作）。**这是 GLB 自身格式的原生动画系统**，由 Three.js `AnimationMixer` 驱动，通过 `playAnimation` / `pauseAnimation` / `seek` 等命令控制播放。
+
+> ⚠️ **与 GSAP 动画 Demo 的区别**：
+> - **GLB 内置动画**（本节命令）— 模型文件自带的骨骼/变形动画片段，播放/暂停/跳转，AI 通过 API 命令控制
+> - **GSAP Demo 动画**（`executeCode` 注入）— AI 生成的 GSAP 装配/爆炸/旋转效果，操作零件整体运动，AI 通过 `node demos/<name>.mjs` 注入 UI 面板控制
+>
+> 两者互不依赖：GLB 内置动画由模型作者定义，GSAP Demo 由 AI 实时生成。
+
 | 命令 | 参数 | 说明 |
 |------|------|------|
 | `getAnimationInfo` | — | 获取动画列表和播放状态 |

@@ -7,56 +7,51 @@ const e=`
       <input type="range" id="scrub" min="0" max="1000" value="0">
       <span class="time-label" id="time-label">0.00s / 0.00s</span>
     </div>
-  </div>
-  <hr class="sep-line">
-  <div class="params-grid">
-    <label>Landing Easing</label>
+    <label>运动</label>
     <select class="ctrl-select" id="easing-select">
-      <option value="power3.in" selected>power3.in — 重力加速</option>
-      <option value="back.out(2.5)">back.out(2.5) — 强锁定</option>
-      <option value="elastic.out(1,0.2)">elastic.out — 弹簧着陆</option>
-      <option value="bounce.out">bounce.out — 弹跳着陆</option>
-      <option value="back.out(1.5)">back.out(1.5) — 锁定回弹</option>
-      <option value="power3.inOut">power3.inOut — 缓入缓出</option>
-      <option value="expo.in">expo.in — 重重力感</option>
-      <option value="none">none — 线性</option>
+      <option value="power3.in" selected>重力加速</option>
+      <option value="back.out(2.5)">强锁定</option>
+      <option value="elastic.out(1,0.2)">弹簧着陆</option>
+      <option value="bounce.out">弹跳着陆</option>
+      <option value="back.out(1.5)">锁定回弹</option>
+      <option value="power3.inOut">缓入缓出</option>
+      <option value="expo.in">重重力感</option>
+      <option value="none">线性</option>
     </select>
-    <label>Drop Height</label>
+  </div>
+  <div class="ctrl-row">
+    <label>高度</label>
     <input type="range" id="height-slider" min="1.0" max="5.0" step="0.1" value="3.0">
     <span class="value" id="height-val">3.0×</span>
-    <label>Per Group</label>
+    <label>时长</label>
     <input type="range" id="duration-slider" min="0.2" max="3.0" step="0.1" value="0.8">
     <span class="value" id="duration-val">0.8s</span>
-
-  </div>
-  <div class="ctrl-row" style="justify-content:space-between;">
-    <span id="part-info">0 parts</span>
   </div>
 </div>
 `,t=`
 #gsap-panel {
-  position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
-  background: rgba(13,13,26,0.92); backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
-  padding: 14px 20px; min-width: 400px;
-  display: flex; flex-direction: column; gap: 8px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+  background: rgba(13,13,26,0.6); backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.05); border-radius: 8px;
+  padding: 5px 8px; min-width: 220px;
+  display: flex; flex-direction: column; gap: 3px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35);
   font-family: 'Segoe UI', system-ui, sans-serif; color: #ccc;
   pointer-events: auto;
 }
 #gsap-panel .ctrl-row {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
 }
 #gsap-panel .ctrl-row label {
   font-size: 11px; color: #888; white-space: nowrap;
 }
 #gsap-panel .ctrl-row .value {
-  font-size: 11px; color: #44aaff; font-weight: 600; min-width: 36px;
+  font-size: 11px; color: #44aaff; font-weight: 600; min-width: 24px;
   text-align: right; font-variant-numeric: tabular-nums;
 }
 #gsap-panel .btn-icon {
-  width: 34px; height: 34px; border-radius: 8px; border: none;
-  cursor: pointer; font-size: 16px; display: flex; align-items: center;
+  width: 24px; height: 24px; border-radius: 5px; border: none;
+  cursor: pointer; font-size: 12px; display: flex; align-items: center;
   justify-content: center; transition: all 0.15s;
 }
 #gsap-panel .btn-play { background: #44aaff; color: #0d0d1a; }
@@ -65,38 +60,34 @@ const e=`
 #gsap-panel .btn-play.paused:hover { background: #ffaa66; }
 #gsap-panel .btn-icon.secondary { background: rgba(255,255,255,0.08); color: #ccc; }
 #gsap-panel .btn-icon.secondary:hover { background: rgba(255,255,255,0.15); }
-#gsap-panel .sep-line { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 0; }
+#gsap-panel .sep-line { border: none; border-top: 1px solid rgba(255,255,255,0.04); margin: 1px 0; }
 #gsap-panel .scrub-wrap {
-  display: flex; align-items: center; gap: 10px; flex: 1;
+  display: flex; align-items: center; gap: 4px; flex: 1;
 }
+#gsap-panel .scrub-wrap input[type="range"] { max-width: none; }
 #gsap-panel .time-label {
-  font-size: 11px; color: #888; min-width: 100px; text-align: right; font-variant-numeric: tabular-nums;
+  font-size: 11px; color: #888; min-width: 65px; text-align: right; font-variant-numeric: tabular-nums;
 }
 #gsap-panel input[type="range"] {
-  flex: 1; min-width: 60px; height: 4px; -webkit-appearance: none;
+  flex: 1; min-width: 40px; height: 3px; -webkit-appearance: none;
   appearance: none; background: rgba(255,255,255,0.12); border-radius: 2px;
   outline: none; cursor: pointer;
 }
 #gsap-panel input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+  -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%;
   background: #44aaff; cursor: pointer; border: 2px solid #0d0d1a;
   transition: transform 0.1s;
 }
 #gsap-panel input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
 #gsap-panel input[type="range"]::-moz-range-thumb {
-  width: 14px; height: 14px; border-radius: 50%;
+  width: 10px; height: 10px; border-radius: 50%;
   background: #44aaff; cursor: pointer; border: 2px solid #0d0d1a;
 }
 #gsap-panel .ctrl-select {
-  padding: 4px 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.06); color: #ccc; font-size: 11px; outline: none; cursor: pointer;
+  padding: 2px 4px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06); color: #ccc; font-size: 11px; outline: none; cursor: pointer; max-width: 56px;
 }
 #gsap-panel .ctrl-select:focus { border-color: #44aaff; }
-#gsap-panel .params-grid {
-  display: grid; grid-template-columns: auto 1fr auto auto 1fr auto;
-  gap: 4px 8px; width: 100%; align-items: center;
-}
-#gsap-panel #part-info { font-size: 11px; color: #555; white-space: nowrap; }
 `,a=`
 ;(function() {
   var gsap = window.__gsap
@@ -117,9 +108,9 @@ const e=`
 
   // ---- Capture parts and initial positions ----
   function captureParts() {
+    resetPartsPosition()
     var partInfos = api.getParts()
     if (!partInfos || !partInfos.length) {
-      document.getElementById('part-info').textContent = '0 parts — 请先加载模型'
       return false
     }
 
@@ -159,7 +150,6 @@ const e=`
     }
 
     if (!parts.length) {
-      document.getElementById('part-info').textContent = '0 parts — 未找到零件'
       return false
     }
 
@@ -171,7 +161,6 @@ const e=`
     var assemblyTopZ = box.max.z
 
     _assemblyData = { parts: parts, assemblyTopZ: assemblyTopZ }
-    document.getElementById('part-info').textContent = parts.length + ' parts · topZ ' + assemblyTopZ.toFixed(0)
     return true
   }
 
