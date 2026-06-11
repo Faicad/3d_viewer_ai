@@ -10,7 +10,7 @@ EXCLUDES=(
   'tests/*'
   'test.mjs'
   'playwright.config.ts'
-  'scripts/smoke-test.mjs'
+  'tests/smoke-test.mjs'
   'wasm/*'
 )
 
