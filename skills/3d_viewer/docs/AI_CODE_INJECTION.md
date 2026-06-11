@@ -160,20 +160,51 @@ AI 注入的 JS 代码可直接使用以下全局变量：
 | `window.__gsap` | GSAP 动画库（`gsap.to()` / `gsap.timeline()` 等全部 API） |
 | `window.__THREE` | Three.js 模块（`new THREE.Vector3()`、`new THREE.Quaternion()` 等数学工具） |
 
-## 完整案例：GSAP 旋转控制面板
+## 内置 Demo 案例
 
-文件位置：`demos/gsap-rotate-demo.mjs`（`node ... --clear` 清除）
+三份完整案例可直接 `node` 执行注入 viewer：
 
-功能：
-- 🎮 播放/暂停按钮
-- ⏩ 速度滑块 (0–4x)
-- 🔄 方向切换
+```bash
+node demos/gsap-rotate-demo.mjs    # 旋转控制面板
+node demos/gsap-assemble-demo.mjs  # 装配动画
+node demos/gsap-explode-demo.mjs   # 爆炸图动画
+```
+
+默认请求 `localhost:4273`（skill 默认端口）；可用 `VIEWER_PORT` 环境变量或传参覆盖：
+
+```bash
+VIEWER_PORT=5173 node demos/gsap-rotate-demo.mjs
+```
+
+### gsap-rotate-demo — 旋转控制面板
+
+- 🎮 播放/暂停按钮、进度条
+- ⏩ 速度滑块 (0–4x)、方向切换
 - 📷/🧊 相机环绕 / 物体自转 模式切换
 - 🪄 X/Y/Z 旋转轴选择
-- 🎨 8 种缓动函数（linear / power1-3 / sine / expo / back / elastic / bounce）
-- ⌨️ 空格键播放/暂停
+- 🎨 8 种缓动函数
+- ⌨️ 空格键播放/暂停，R 键重置
 
-该案例完整展示了如何使用 `executeCode` 注入自定义 UI、利用 `viewerAPI` 控制场景、以及通过 `window.__gsap` 实现复杂动画效果。
+### gsap-assemble-demo — 装配动画
+
+- 📦 零件按包围盒 Z 轴排序，自下而上逐个落位
+- 📏 落高倍率调节（1–5×）
+- ⏱ 单零件时长调节（0.2–3s）
+- 🎨 7 种着陆缓动（back.out / elastic / bounce / power3 / expo / 线性）
+- 🎮 播放/暂停、进度条拖拽
+- ⌨️ 空格键播放/暂停，R 键重置
+
+### gsap-explode-demo — 爆炸图动画
+
+- 💥 零件以场景中心为原点，沿径向飞散
+- 📏 飞散距离倍率（0.2–5×）
+- ⏱ 单零件时长（0.3–5s）
+- ⏳ 交错延迟 stagger（0–0.8s）
+- 🎨 8 种缓动函数
+- 🎮 播放/暂停、进度条拖拽
+- ⌨️ 空格键播放/暂停，R 键重置，← → 逐帧步进
+
+三个案例完整演示了如何通过 `executeCode` 注入自定义 UI、利用 `viewerAPI.getPartProxy()` 配合 GSAP 实现复杂动画。
 
 ## 注入 UI 的 CSS 注意事项
 

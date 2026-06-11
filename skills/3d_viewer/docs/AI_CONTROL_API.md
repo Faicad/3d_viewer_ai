@@ -283,6 +283,14 @@ window.postMessage({
 
 > `executeCode` 是 AI 生成自定义 UI 的入口，**当前为实验性功能**，接口和行为可能在未来版本中调整。详见 [AI Code Injection](./AI_CODE_INJECTION.md)。
 
+内置三个 Demo 可直接 `node demos/<name>.mjs` 执行，向本地 viewer 注入动画控制面板：
+
+| Demo | 说明 |
+|------|------|
+| `gsap-rotate-demo.mjs` | 旋转控制面板 — 相机环绕/物体自转、速度、缓动、轴选择 |
+| `gsap-assemble-demo.mjs` | 装配动画 — 零件自下而上逐个落位，可调节落高、时长、着陆缓动 |
+| `gsap-explode-demo.mjs` | 爆炸图动画 — 零件沿径向飞散，可调距离、stagger、时长、缓动 |
+
 ---
 
 ## 五、loadModel 命令详解
