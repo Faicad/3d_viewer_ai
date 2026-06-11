@@ -1,28 +1,31 @@
 ---
 name: 3d_viewer
 description: >-
-  直接在本地查看 3D 模型文件，无需安装其它大型软件。支持 STL/3MF/STEP/STP/GLB/GLTF/OBJ/PLY/FBX/USDZ 等 29+ 种格式。持材质编辑、环境贴图、动画播放、线框/拓扑叠加、测量等。
+  直接在本地查看 3D 模型文件，无需安装其它大型软件。支持 STL/3MF/STEP/STP/GLB/GLTF/OBJ/PLY/FBX/USDZ/SCAD 等 30+ 种格式。
+  支持通过自然语言生成 3D 模型（OpenSCAD）。支持材质编辑、环境贴图、动画播放、线框/拓扑叠加、测量等。
   触发词：查看这个3D模型, 打开这个STL文件, 浏览STEP模型, 3D模型查看, view this 3D model, open stl file,
-  view step model, 3mf viewer, glb viewer.
+  view step model, 3mf viewer, glb viewer, 生成一个齿轮, 做一个螺栓, generate a gear, create a bolt.
 license: LGPL-2.0-only
 compatibility:
   - opencode
   - claude
 metadata:
-  formats: "stl,3mf,step,stp,glb,gltf,obj,ply,fbx,usdz,3ds,dae,drc,dxf,svg,hdr,exr"
-  features: "url-auto-load,drag-and-drop,STEP-topology,wireframe,material-editor,environment-maps,measurement"
+  formats: "stl,3mf,step,stp,glb,gltf,obj,ply,fbx,usdz,scad,3ds,dae,drc,dxf,svg,hdr,exr"
+  features: "url-auto-load,drag-and-drop,STEP-topology,wireframe,material-editor,environment-maps,measurement,ai-model-generation"
 ---
 
 # 3D 模型查看器
 
-一个基于浏览器的全功能 3D 模型文件查看器。支持 29+ 种文件格式，实时 3D 渲染。
+一个基于浏览器的全功能 3D 模型文件查看器。支持 30+ 种文件格式，实时 3D 渲染。
 通过 `?url=` 参数可自动加载模型，用户打开浏览器后直接看到模型，无需手动拖放。
+支持 AI 通过 OpenSCAD 代码实时生成 3D 模型——用自然语言描述形状，AI 将其编译为可见模型。
 
 ## 支持格式
 
 | 类别 | 格式 |
 |------|------|
 | CAD | STEP/STP, 3MF, STL, OBJ, PLY, FBX, DAE, 3DS, IFC, 3DM |
+| 编程式建模 | SCAD（OpenSCAD — AI 可通过代码生成模型） |
 | 3D 图形 | GLB/GLTF, USDZ, DRC, BVH, VTK, XYZ, PDB |
 | 其他 | NRRD, GCode, WRL, VOX, KMZ, AMF, LWO, MD2, PCD |
 | 2D | SVG, DXF |
@@ -111,6 +114,39 @@ curl -X POST http://localhost:4273/api/command \
 window.postMessage({ type: '3d-viewer', command: 'setTheme', params: { value: 'dark' } }, '*')
 ```
 
+### AI 模型生成
+
+当用户用自然语言描述 3D 模型需求时（如"一个 20 齿的齿轮"、"一个内六角螺栓"），可直接用 OpenSCAD 生成模型：
+
+1. 根据用户描述编写 OpenSCAD 代码
+2. 通过 `generateScadModel` 命令发送：
+```bash
+curl -X POST http://localhost:4273/api/command \
+  -H "Content-Type: application/json" \
+  -d '{"type":"3d-viewer","id":"gen-1","command":"generateScadModel","params":{
+    "code": "difference() { cube([10,20,30], center=true); cylinder(r=5, h=35, center=true); }",
+    "name": "my-part",
+    "mode": "replace"
+  }}'
+```
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `code` | string | 是 | — | OpenSCAD 源代码 |
+| `name` | string | 否 | `"generated-model"` | 场景树中显示的名称 |
+| `mode` | `"replace"` \| `"append"` | 否 | `"replace"` | `replace` 清空现有模型；`append` 追加到场景 |
+
+SCAD 代码在浏览器内通过 `openscad-wasm`（Web Worker）编译为 STL，编译完成后模型立即显示（通常 0.5–3 秒）。
+
+**多零件装配**：后续零件使用 `mode: "append"`：
+```bash
+# 第一个零件替换场景
+curl ... -d '{"command":"generateScadModel","params":{"code":"...壳体...","name":"housing","mode":"replace"}}'
+# 追加更多零件
+curl ... -d '{"command":"generateScadModel","params":{"code":"...齿轮1...","name":"gear1","mode":"append"}}'
+curl ... -d '{"command":"generateScadModel","params":{"code":"...齿轮2...","name":"gear2","mode":"append"}}'
+```
+
 ### 第 6 步：清理
 查看结束后，关闭本地 HTTP 服务，释放端口。
 
@@ -124,7 +160,7 @@ skills/3d_viewer/
 ├── scripts/serve.mjs     # 基于 Node.js 的 HTTP 服务 + SSE 桥
 ├── scripts/mcp-server.mjs # MCP 协议服务器（AI 原生调用接口）
 ├── assets/               # JavaScript/CSS 资源
-├── wasm/                 # WebAssembly 模块 (OCCT/Draco/Basis/Rhino3DM)
+├── wasm/                 # WebAssembly 模块 (OCCT/OpenSCAD/Draco/Basis/Rhino3DM)
 ├── env/                  # 环境贴图
 └── models/               # AI 复制模型到此目录
 ```
@@ -142,5 +178,6 @@ skills/3d_viewer/
 
 - 查看器是完全离线的——所有 WASM 和 JS 都在本地，无需网络。
 - STEP 文件需要 WASM 加载 OCCT 内核，首次加载较慢（约 1-2 秒）。
+- SCAD 模型生成首次使用时会从 CDN 加载 `openscad.wasm`（约 13MB），后续编译很快（0.5–3 秒）。
 - 查看器以 `file://` 协议无法正常加载 WASM，务必通过 HTTP 服务提供。
 - 模型文件需要复制到 HTTP 服务目录下（`models/` 子目录），文件才能被浏览器访问。
