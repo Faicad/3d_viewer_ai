@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-echo "==> 1/3  npm ci"
-npm ci
+echo "==> 1/3 skip npm ci"
+# npm ci # 本地不准一直跑这个命令
 
 echo "==> 2/3  Smoke test"
 npm test

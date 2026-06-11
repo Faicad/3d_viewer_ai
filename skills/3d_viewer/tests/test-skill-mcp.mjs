@@ -1,14 +1,16 @@
 import { spawn } from 'child_process'
 import { join, dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
+import fs from 'fs'
 import http from 'http'
 import { chromium } from 'playwright'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const rootDir = resolve(__dirname, '..')
+const rootDir = resolve(__dirname, '..', '..')
+const distDir = join(rootDir, 'dist')
 const serveScript = join(rootDir, 'scripts', 'serve.mjs')
 const mcpScript = join(rootDir, 'scripts', 'mcp-server.mjs')
-const skillRoot = rootDir
+const serveRoot = fs.existsSync(join(rootDir, 'index.html')) ? rootDir : distDir
 
 // ============================================================
 // Helpers
@@ -70,7 +72,7 @@ function httpPost(url, body) {
 // ============================================================
 
 async function startServer(port = 4185) {
-  const proc = spawn('node', [serveScript, skillRoot], {
+  const proc = spawn('node', [serveScript, serveRoot], {
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env, PORT: String(port) },
   })
@@ -210,7 +212,7 @@ async function testServerStartsAndServes() {
   const html = await resp.text()
   assert(resp.status === 200, `GET / returns 200 (got ${resp.status})`)
   assert(html.includes('<!DOCTYPE html>') || html.includes('<html'), 'response is HTML')
-  assert(html.includes('id="root"'), 'HTML contains app mount point')
+  assert(html.includes('id="root"'), 'HTML contains React mount point')
 
   // Connect SSE first so the API command has a client to deliver to
   const sseCtrl = new AbortController()

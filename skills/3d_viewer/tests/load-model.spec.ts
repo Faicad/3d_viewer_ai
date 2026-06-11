@@ -23,14 +23,10 @@ test.describe('Skill deployment — model loading', () => {
   test('serves SSE /api/events endpoint', async ({ page }) => {
     const result = await page.evaluate(async () => {
       const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 2000)
-      try {
-        const resp = await fetch('http://localhost:4273/api/events', { signal: controller.signal })
-        const contentType = resp.headers.get('content-type') || ''
-        return { status: resp.status, contentType }
-      } finally {
-        clearTimeout(timer)
-      }
+      const resp = await fetch('http://localhost:4273/api/events', { signal: controller.signal })
+      controller.abort()
+      const contentType = resp.headers.get('content-type') || ''
+      return { status: resp.status, contentType }
     })
     expect(result.status).toBe(200)
     expect(result.contentType).toContain('text/event-stream')
