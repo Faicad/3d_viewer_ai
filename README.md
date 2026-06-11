@@ -1,7 +1,8 @@
 # 3D Viewer — AI Skill Description
 
-A browser-based 3D model viewer supporting 29+ file formats, fully offline capable.\
-When users say "view this 3D model file" — AI handles it automatically.
+A browser-based 3D model viewer supporting 30+ file formats, fully offline capable.\
+When users say "view this 3D model file" — AI handles it automatically.\
+AI can also generate 3D models from natural language via OpenSCAD.
 
 [中文版说明](README_zh.md)
 
@@ -18,6 +19,7 @@ When users say "view this 3D model file" — AI handles it automatically.
 - **Model Animation**: Play model animations, clip switching, looping, speed control
 - **Scene Tree**: Hierarchical display of model parts with independent visibility control
 - **3D Printing**: Heated bed display, filament cost calculation
+- **AI Model Generation**: Generate 3D models from natural language via OpenSCAD code compilation
 - **Model Download**: Export as STL or GLB (todo)
 - **Measurement Tool**: Point-to-point distance measurement (todo)
 - **Dark/Light Theme**, **Chinese/English UI**
