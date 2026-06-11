@@ -1,30 +1,32 @@
 ---
 name: 3d_viewer
 description: >-
-  View 3D model files directly locally without installing other large software. Supports 29+ formats including
-  STL/3MF/STEP/STP/GLB/GLTF/OBJ/PLY/FBX/USDZ. Supports material editing, environment maps, animation playback,
-  wireframe/topology overlay, measurement, etc.
-  Trigger words: view this 3D model, open stl file, view step model, 3mf viewer, glb viewer,
+  View 3D model files directly locally without installing other large software. Supports 30+ formats including
+  STL/3MF/STEP/STP/GLB/GLTF/OBJ/PLY/FBX/USDZ/SCAD. Can generate 3D models from natural language using OpenSCAD.
+  Supports material editing, environment maps, animation playback, wireframe/topology overlay, measurement, etc.
+  Trigger words: view this 3D model, open stl file, view step model, 3mf viewer, glb viewer, generate a gear, create a bolt,
   查看这个3D模型, 打开这个STL文件, 浏览STEP模型, 3D模型查看.
 license: LGPL-2.0-only
 compatibility:
   - opencode
   - claude
 metadata:
-  formats: "stl,3mf,step,stp,glb,gltf,obj,ply,fbx,usdz,3ds,dae,drc,dxf,svg,hdr,exr"
-  features: "url-auto-load,drag-and-drop,STEP-topology,wireframe,material-editor,environment-maps,measurement"
+  formats: "stl,3mf,step,stp,glb,gltf,obj,ply,fbx,usdz,scad,3ds,dae,drc,dxf,svg,hdr,exr"
+  features: "url-auto-load,drag-and-drop,STEP-topology,wireframe,material-editor,environment-maps,measurement,ai-model-generation"
 ---
 
 # 3D Model Viewer
 
-A browser-based full-featured 3D model file viewer. Supports 29+ file formats with real-time 3D rendering.
+A browser-based full-featured 3D model file viewer. Supports 30+ file formats with real-time 3D rendering.
 The `?url=` parameter enables auto-loading models — users see the model directly when they open the browser, no manual drag-and-drop needed.
+Can generate 3D models from OpenSCAD code — describe the shape in natural language and the AI compiles it to a visible model.
 
 ## Supported Formats
 
 | Category | Formats |
 |----------|---------|
 | CAD | STEP/STP, 3MF, STL, OBJ, PLY, FBX, DAE, 3DS, IFC, 3DM |
+| Programmatic | SCAD (OpenSCAD — AI can generate models from code) |
 | 3D Graphics | GLB/GLTF, USDZ, DRC, BVH, VTK, XYZ, PDB |
 | Other | NRRD, GCode, WRL, VOX, KMZ, AMF, LWO, MD2, PCD |
 | 2D | SVG, DXF |
@@ -111,6 +113,39 @@ curl -X POST http://localhost:4273/api/command \
 window.postMessage({ type: '3d-viewer', command: 'setTheme', params: { value: 'dark' } }, '*')
 ```
 
+### AI Model Generation
+
+When the user describes a 3D model in natural language (e.g. "a gear with 20 teeth", "a bolt with hex head"), you can generate it directly using OpenSCAD:
+
+1. Write the OpenSCAD code based on the user's description
+2. Send it via the `generateScadModel` command:
+```bash
+curl -X POST http://localhost:4273/api/command \
+  -H "Content-Type: application/json" \
+  -d '{"type":"3d-viewer","id":"gen-1","command":"generateScadModel","params":{
+    "code": "difference() { cube([10,20,30], center=true); cylinder(r=5, h=35, center=true); }",
+    "name": "my-part",
+    "mode": "replace"
+  }}'
+```
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `code` | string | Yes | — | OpenSCAD source code |
+| `name` | string | No | `"generated-model"` | Display name in scene tree |
+| `mode` | `"replace"` \| `"append"` | No | `"replace"` | `replace` clears existing models; `append` adds to scene |
+
+SCAD code is compiled to STL in-browser via `openscad-wasm` (Web Worker). The model appears in the viewer immediately after compilation (typically 0.5–3s).
+
+**Multi-part assembly**: use `mode: "append"` for subsequent parts:
+```bash
+# First part replaces everything
+curl ... -d '{"command":"generateScadModel","params":{"code":"...housing...","name":"housing","mode":"replace"}}'
+# Additional parts append
+curl ... -d '{"command":"generateScadModel","params":{"code":"...gear1...","name":"gear1","mode":"append"}}'
+curl ... -d '{"command":"generateScadModel","params":{"code":"...gear2...","name":"gear2","mode":"append"}}'
+```
+
 ### Step 6: Cleanup
 After viewing is complete, shut down the local HTTP service to release the port.
 
@@ -125,7 +160,7 @@ skills/3d_viewer/
 ├── scripts/serve.mjs     # Node.js HTTP server + SSE bridge
 ├── scripts/mcp-server.mjs # MCP protocol server (AI-native call interface)
 ├── assets/               # JavaScript/CSS assets
-├── wasm/                 # WebAssembly modules (OCCT/Draco/Basis/Rhino3DM)
+├── wasm/                 # WebAssembly modules (OCCT/OpenSCAD/Draco/Basis/Rhino3DM)
 ├── env/                  # Environment maps
 └── models/               # AI copies models to this directory
 ```
@@ -143,5 +178,6 @@ skills/3d_viewer/
 
 - The viewer is fully offline — all WASM and JS are local, no network required.
 - STEP files need WASM to load the OCCT kernel; first load is slower (~1-2 seconds).
+- SCAD model generation loads `openscad.wasm` (~13MB) from CDN on first use; subsequent compilations are fast (0.5–3s).
 - The viewer cannot properly load WASM under the `file://` protocol; it must be served via HTTP.
 - Model files must be copied to the HTTP service directory (`models/` subdirectory) to be accessible by the browser.
