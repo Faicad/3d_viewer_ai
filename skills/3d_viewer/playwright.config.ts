@@ -9,8 +9,8 @@ export default defineConfig({
     headless: true,
   },
   webServer: {
-    command: `node ${import.meta.dirname}/scripts/serve.mjs`,
+    command: `node ${import.meta.dirname}/scripts/kill-port.mjs && node ${import.meta.dirname}/scripts/serve.mjs`,
     port: 4273,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
 })
