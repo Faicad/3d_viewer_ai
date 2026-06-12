@@ -1,98 +1,98 @@
-# 3D Viewer AI 控制接口
+# 3D Viewer AI Control Interface
 
-## 概述
+## Overview
 
-三种方式控制查看器：
+Three ways to control the viewer:
 
-- **URL 参数**：页面加载时自动设置初始状态（语言、主题、环境贴图、自动加载模型）
-- **HTTP API**（推荐）：`serve.mjs` 内置 SSE 桥，AI 通过 `curl` 发送命令，浏览器实时执行。无需浏览器 JS 能力。
-- **postMessage API**：同窗口内实时控制
+- **URL Parameters**: Set initial state on page load (language, theme, environment map, auto-load model)
+- **HTTP API** (recommended): `serve.mjs` has a built-in SSE bridge. AI sends commands via `curl`, the browser executes them in real-time. No browser JS capability required.
+- **postMessage API**: Real-time control within the same window
 
 ---
 
-## 一、模型加载
+## 1. Model Loading
 
-将模型文件复制到服务目录下的 `models/`，然后通过 URL 参数或 API 命令加载。
+Copy a model file to the `models/` directory under the server root, then load it via URL parameter or API command.
 
 ```bash
 cp /path/to/model.stl <skill_dir>/models/
 node <skill_dir>/scripts/serve.mjs
-# 打开 http://localhost:4273/#/workspace?url=./models/model.stl
+# Open http://localhost:4273/#/workspace?url=./models/model.stl
 ```
 
-支持格式：GLB、glTF、STEP、STP、STL、OBJ、3MF、FBX、PLY、SCAD，以及其他 Three.js 支持的格式。
+Supported formats: GLB, glTF, STEP, STP, STL, OBJ, 3MF, FBX, PLY, SCAD, and other formats supported by Three.js.
 
-STEP/STP 文件在加载时自动通过 OCCT WASM 转换为 GLB 再渲染。SCAD 文件通过 openscad-wasm 编译为 mesh 后渲染。
+STEP/STP files are automatically converted to GLB via OCCT WASM before rendering. SCAD files are compiled to mesh via openscad-wasm before rendering.
 
-HDR/EXR 环境贴图同样处理（复制到 `models/` 后通过 `loadEnvFile` 命令加载）。
+HDR/EXR environment maps work the same way (copy to `models/` then load via `loadEnvFile` command).
 
 ---
 
-## 二、URL 参数（初始状态）
+## 2. URL Parameters (Initial State)
 
 ```
-http://localhost:4273/#/workspace?url=<path>&theme=dark&lang=zh&env=studio
+http://localhost:4273/#/workspace?url=<path>&theme=dark&lang=en&env=studio
 ```
 
-| 参数 | 类型 | 可选值 | 默认值 | 说明 |
-|------|------|--------|--------|------|
-| `url` | string | 服务目录下的相对路径 | — | 页面加载后自动加载该模型 |
-| `theme` | string | `light` / `dark` / `system` | `system` | 界面主题 |
-| `lang` | string | `zh` / `en` / `es` / `ja` / `ko` / `fr` / `de` / `pt` / `ru` / `ar` / `hi` / `id` / `tr` / `it` / `nl` / `pl` / `vi` / `th` / `uk` / `sv` | 浏览器语言 | 界面语言 |
-| `env` | string | `studio` / 任意 HDR URL | `studio` | 环境贴图。支持 Poly Haven 等支持 CORS 的 CDN 链接 |
+| Parameter | Type | Values | Default | Description |
+|-----------|------|--------|---------|-------------|
+| `url` | string | relative path under server root | — | Auto-load this model on page load |
+| `theme` | string | `light` / `dark` / `system` | `system` | UI theme |
+| `lang` | string | `zh` / `en` / `es` / `ja` / `ko` / `fr` / `de` / `pt` / `ru` / `ar` / `hi` / `id` / `tr` / `it` / `nl` / `pl` / `vi` / `th` / `uk` / `sv` | browser language | UI language |
+| `env` | string | `studio` / any HDR URL | `studio` | Environment map. Supports CORS-compatible CDN links like Poly Haven |
 
 ---
 
-## 三、SSE/HTTP 桥接（跨进程控制）
+## 3. SSE/HTTP Bridge (Cross-Process Control)
 
-`serve.mjs` 内置 SSE 桥，解决 AI 进程与浏览器进程隔离的问题：
+`serve.mjs` has a built-in SSE bridge that solves the process isolation problem between AI and browser:
 
 ```
-AI (curl) ──POST /api/command──→ serve.mjs ──SSE──→ 浏览器执行
+AI (curl) ──POST /api/command──→ serve.mjs ──SSE──→ Browser executes
 ```
 
-### 请求格式
+### Request Format
 
-所有命令**建议携带 `id`**，serve.mjs 等待浏览器回传结果后返回。若未传 `id` 则自动生成（响应中会附加 `_warning` 提示）。超时 30 秒。
+All commands **should include an `id`**. `serve.mjs` waits for the browser to return the result before responding. If no `id` is provided, one is auto-generated (a `_warning` is appended to the response). Timeout: 30 seconds.
 
 ```bash
 curl -X POST http://localhost:4273/api/command \
   -H "Content-Type: application/json" \
   -d '{"type":"3d-viewer","id":"req-001","command":"getTheme","params":{}}'
-# 响应: {"type":"3d-viewer","id":"req-001","command":"getTheme","status":"success","data":{"theme":"dark"}}
-# 超时（30s）: {"type":"3d-viewer","id":"req-001","command":"getTheme","status":"error","error":"Command timeout: getTheme"}
+# Response: {"type":"3d-viewer","id":"req-001","command":"getTheme","status":"success","data":{"theme":"dark"}}
+# Timeout (30s): {"type":"3d-viewer","id":"req-001","command":"getTheme","status":"error","error":"Command timeout: getTheme"}
 ```
 
-#### 异步命令说明
+#### Async Command Notes
 
-`loadModel` 是异步命令。SSE handler 会 `await` 直到模型完全加载（含 STEP→GLB 转换），然后 POST `/api/result` 唤醒 MCP Promise。因此 `loadModel` 请求会阻塞到模型真正可用才返回，response 中直接包含完整的模型信息。
+`loadModel` is an async command. The SSE handler `await`s until the model is fully loaded (including STEP→GLB conversion), then POSTs to `/api/result` to resolve the MCP Promise. Therefore, `loadModel` requests block until the model is actually available, and the response directly includes complete model information.
 
-#### 错误响应
+#### Error Responses
 
-| 状态码 | 条件 | 响应体 |
-|--------|------|--------|
-| 400 | JSON 格式错误 | `{"type":"3d-viewer","status":"error","error":"Invalid JSON"}` |
-| 503 | 无 SSE 客户端连接 | `{"type":"3d-viewer","status":"error","error":"No connected clients"}` |
-| 504 | 同步模式超时（30s） | `{"type":"3d-viewer","id":"<id>","command":"<cmd>","status":"error","error":"Command timeout: <cmd>"}` |
+| Status Code | Condition | Response Body |
+|-------------|-----------|---------------|
+| 400 | Invalid JSON | `{"type":"3d-viewer","status":"error","error":"Invalid JSON"}` |
+| 503 | No SSE client connected | `{"type":"3d-viewer","status":"error","error":"No connected clients"}` |
+| 504 | Sync mode timeout (30s) | `{"type":"3d-viewer","id":"<id>","command":"<cmd>","status":"error","error":"Command timeout: <cmd>"}` |
 
-### 命令格式
+### Command Format
 
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `type` | string | 是 | 固定 `"3d-viewer"` |
-| `command` | string | 是 | 命令名称 |
-| `id` | string | 强烈建议 | 请求 ID。未传时 serve.mjs 自动生成（响应附带 `_warning`） |
-| `params` | object | 否 | 命令参数 |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | Fixed `"3d-viewer"` |
+| `command` | string | Yes | Command name |
+| `id` | string | Strongly recommended | Request ID. Auto-generated if omitted (response includes `_warning`) |
+| `params` | object | No | Command parameters |
 
-> 命令列表与 postMessage API 完全一致，见下文。
+> The command list is identical to the postMessage API — see below.
 
 ---
 
-## 四、postMessage API（同窗口控制）
+## 4. postMessage API (Same-Window Control)
 
-### 协议格式
+### Protocol Format
 
-#### 请求
+#### Request
 ```js
 window.postMessage({
   type: '3d-viewer',
@@ -102,10 +102,10 @@ window.postMessage({
 }, '*')
 ```
 
-#### 响应
+#### Response
 
 ```js
-// 成功
+// Success
 {
   type: '3d-viewer',
   id: 'req-001',
@@ -114,7 +114,7 @@ window.postMessage({
   data: { theme: 'dark' }
 }
 
-// 失败
+// Failure
 {
   type: '3d-viewer',
   id: 'req-001',
@@ -124,73 +124,72 @@ window.postMessage({
 }
 ```
 
-异步命令（`loadModel`、`generateScadModel`、`exportModel`）通过 postMessage 通道时，即时返回 `{ loading: true }`，完成后推送 `modelLoaded` / `modelLoadError` 事件。AI 通过 SSE 通道使用时可忽略此差异（SSE 会 await 完整结果）。
+Async commands (`loadModel`, `exportModel`) return `{ loading: true }` immediately over the postMessage channel, then push `modelLoaded` / `modelLoadError` events when done. When using the SSE channel, this difference can be ignored (SSE awaits the full result).
 
 ---
 
-### 命令列表
+### Command List
 
-#### 模型控制
+#### Model Control
 
-| 命令 | 参数 | 说明 |
-|------|------|------|
-| `loadModel` | `{ url: string }` 或 `{ data: string }` | 从 URL 或 base64 data URL 加载模型。STEP 自动转换为 GLB |
-| `generateScadModel` | `{ code: string, name?: string, mode?: 'replace' \| 'append' }` | 根据 OpenSCAD 代码生成 3D 模型并加载到场景 |
-| `getModelInfo` | — | 获取当前模型信息（fileName、format、partCount、parts、animations） |
-| `resetViewer` | — | 清空场景、清除选中、重置动画状态 |
-| `exportModel` | `{ format: 'glb' \| 'stl' }` | 导出当前场景所有可见模型为 GLB 或 STL，返回 base64 编码的二进制数据 |
+| Command | Parameters | Description |
+|---------|-----------|-------------|
+| `loadModel` | `{ url: string }` or `{ data: string }` | Load a model from URL or base64 data URL. STEP is auto-converted to GLB |
+| `getModelInfo` | — | Get current model info (fileName, format, partCount, parts, animations) |
+| `resetViewer` | — | Clear scene, clear selection, reset animation state |
+| `exportModel` | `{ format: 'glb' \| 'stl' }` | Export all visible models in the scene as GLB or STL, returns base64-encoded binary data |
 
-#### 主题
+#### Theme
 
-| 命令 | 参数 | 说明 |
-|------|------|------|
-| `setTheme` | `{ value: 'light' \| 'dark' \| 'system' }` | 切换主题 |
-| `getTheme` | — | 获取当前主题 |
+| Command | Parameters | Description |
+|---------|-----------|-------------|
+| `setTheme` | `{ value: 'light' \| 'dark' \| 'system' }` | Switch theme |
+| `getTheme` | — | Get current theme |
 
-#### 语言
+#### Language
 
-| 命令 | 参数 | 说明 |
-|------|------|------|
-| `setLanguage` | `{ value: string }` | 切换界面语言 |
-| `getLanguage` | — | 获取当前语言 |
+| Command | Parameters | Description |
+|---------|-----------|-------------|
+| `setLanguage` | `{ value: string }` | Switch UI language |
+| `getLanguage` | — | Get current language |
 
-#### 环境贴图
+#### Environment Map
 
-| 命令 | 参数 | 说明 |
-|------|------|------|
-| `setEnv` | `{ value: string }` | 切换环境贴图（`studio`、`custom_N`、或 HDR URL） |
-| `getEnv` | — | 获取当前环境贴图 ID |
-| `setEnvIntensity` | `{ value: number }` | 设置环境强度 0-5 |
-| `setEnvRotation` | `{ value: number }` | 旋转环境贴图（弧度） |
-| `loadEnvFile` | `{ url: string, name: string }` | 加载自定义 HDR/EXR |
+| Command | Parameters | Description |
+|---------|-----------|-------------|
+| `setEnv` | `{ value: string }` | Switch environment map (`studio`, `custom_N`, or HDR URL) |
+| `getEnv` | — | Get current environment map ID |
+| `setEnvIntensity` | `{ value: number }` | Set environment intensity 0-5 |
+| `setEnvRotation` | `{ value: number }` | Rotate environment map (radians) |
+| `loadEnvFile` | `{ url: string, name: string }` | Load a custom HDR/EXR |
 
-#### 材质控制
+#### Material Control
 
-| 命令 | 参数 | 说明 |
-|------|------|------|
-| `getMaterialPresets` | — | 获取所有内置材质预设（名称 → 完整 MaterialAppearance 字典） |
-| `setPartMaterialByPreset` | `{ preset: string, partName?: string }` | 应用内置预设到指定零件 |
-| `setPartMaterial` | `{ appearance: MaterialAppearance, partName?: string }` | 应用自定义材质到指定零件 |
-| `getPartMaterial` | `{ partName?: string }` | 获取指定零件的当前材质状态 |
+| Command | Parameters | Description |
+|---------|-----------|-------------|
+| `getMaterialPresets` | — | Get all built-in material presets (name → full MaterialAppearance dict) |
+| `setPartMaterialByPreset` | `{ preset: string, partName?: string }` | Apply a built-in preset to a specific part |
+| `setPartMaterial` | `{ appearance: MaterialAppearance, partName?: string }` | Apply a custom material to a specific part |
+| `getPartMaterial` | `{ partName?: string }` | Get the current material state of a specific part |
 
-##### 零件材质定位规则
+##### Part Material Targeting Rules
 
-`partName` 是**场景树中显示的零件名**（`GlbPartInfo.name`）。不传时按以下优先级自动确定目标：
+`partName` is the **part name displayed in the scene tree** (`GlbPartInfo.name`). When omitted, the target is auto-determined by the following priority:
 
-| 优先级 | 条件 | 行为 |
-|--------|------|------|
-| 1 | 指定了 `partName` | 按名称匹配（重名取首个） |
-| 2 | 有选中（`selectedReferenceIds` 非空） | 该节点下所有零件，支持零件/文件/组 |
-| 3 | 未选中 | 当前活跃文件 → 其下所有零件 |
+| Priority | Condition | Behavior |
+|----------|-----------|----------|
+| 1 | `partName` specified | Match by name (first match if duplicates) |
+| 2 | Selection exists (`selectedReferenceIds` not empty) | All parts under that node, supports part/file/group |
+| 3 | No selection | Current active file → all its parts |
 
-> **提示**：`getModelInfo` 返回每个零件的 `name`（场景树显示名）和 `partId`。
+> **Tip**: `getModelInfo` returns each part's `name` (scene tree display name) and `partId`.
 
-##### 预设 vs 自定义材质
+##### Preset vs Custom Material
 
-- **`setPartMaterialByPreset`** — 从内置预设库中选择，系统记录该零件使用的是哪个 preset
-- **`setPartMaterial`** — 传入任意 MaterialAppearance，系统标记该零件为"自定义材质"（清掉 preset 引用）
+- **`setPartMaterialByPreset`** — Selects from the built-in preset library; the system records which preset the part uses
+- **`setPartMaterial`** — Pass any MaterialAppearance; the system marks the part as "custom material" (clears preset reference)
 
-`getPartMaterial` 的返回值会区分这两种情况：
+`getPartMaterial` differentiates between these two cases:
 
 ```typescript
 {
@@ -209,7 +208,7 @@ window.postMessage({
 }
 ```
 
-##### MaterialAppearance 结构
+##### MaterialAppearance Structure
 
 ```typescript
 {
@@ -231,102 +230,102 @@ window.postMessage({
 }
 ```
 
-> **建议**：优先使用 `setPartMaterialByPreset`。AI 应先调用 `getMaterialPresets` 了解可用预设（29 个，覆盖金属/塑料/玻璃/橡胶/油漆等），按名字匹配后应用。
+> **Recommendation**: Prefer `setPartMaterialByPreset`. AI should first call `getMaterialPresets` to learn the available presets (29 presets covering metal/plastic/glass/rubber/paint, etc.), then apply by name.
 
-##### `getMaterialPresets` 返回结构
+##### `getMaterialPresets` Return Structure
 
 ```typescript
 {
   presets: {
     chrome:        { name:"Chrome",         color:[0.95,0.95,0.96], metalness:1.0, roughness:0.02 },
     gold:          { name:"Gold",           color:[1.0,0.84,0.0],   metalness:1.0, roughness:0.1 },
-    // ...共 29 个预设
+    // ...29 presets total
   }
 }
 ```
 
-#### 动画控制
+#### Animation Control
 
-GLB 文件内置的骨骼/变形动画（如产品演示动画、角色动作）。**这是 GLB 自身格式的原生动画系统**，由 Three.js `AnimationMixer` 驱动，通过 `playAnimation` / `pauseAnimation` / `seek` 等命令控制播放。
+Skeletal/morph animations embedded in GLB files (e.g., product demo animations, character actions). **This is the GLB format's native animation system**, driven by Three.js `AnimationMixer`, controlled via `playAnimation` / `pauseAnimation` / `seek` and other commands.
 
-> ⚠️ **与 GSAP 动画 Demo 的区别**：
-> - **GLB 内置动画**（本节命令）— 模型文件自带的骨骼/变形动画片段，播放/暂停/跳转，AI 通过 API 命令控制
-> - **GSAP Demo 动画**（`executeCode` 注入）— AI 生成的 GSAP 装配/爆炸/旋转效果，操作零件整体运动，AI 通过 `node demos/<name>.mjs` 注入 UI 面板控制
+> ⚠️ **Difference from GSAP Animation Demos**:
+> - **GLB Built-in Animations** (this section) — skeletal/morph animation clips embedded in the model file; play/pause/seek controlled via API commands
+> - **GSAP Demo Animations** (`executeCode` injection) — AI-generated GSAP assembly/explode/rotate effects that operate on entire parts; controlled via `node demos/<name>.mjs` injecting a UI panel
 >
-> 两者互不依赖：GLB 内置动画由模型作者定义，GSAP Demo 由 AI 实时生成。
+> They are independent: GLB built-in animations are defined by the model author; GSAP demos are generated by AI in real-time.
 
-| 命令 | 参数 | 说明 |
-|------|------|------|
-| `getAnimationInfo` | — | 获取动画列表和播放状态 |
-| `playAnimation` | — | 播放当前选中动画 |
-| `pauseAnimation` | — | 暂停播放 |
-| `stopAnimation` | — | 停止并回到起点 |
-| `selectAnimation` | `{ index: number }` | 选择第 N 个动画片段（从 0 开始） |
-| `seek` | `{ time: number }` | 跳转到指定时间点（秒） |
-| `setSpeed` | `{ value: number }` | 设置播放速度倍数 |
-| `setAnimationMaximized` | `{ value: boolean }` | 最大化/还原动画窗口 |
+| Command | Parameters | Description |
+|---------|-----------|-------------|
+| `getAnimationInfo` | — | Get animation list and playback state |
+| `playAnimation` | — | Play the currently selected animation |
+| `pauseAnimation` | — | Pause playback |
+| `stopAnimation` | — | Stop and return to start |
+| `selectAnimation` | `{ index: number }` | Select the Nth animation clip (0-based) |
+| `seek` | `{ time: number }` | Seek to a specific time point (seconds) |
+| `setSpeed` | `{ value: number }` | Set playback speed multiplier |
+| `setAnimationMaximized` | `{ value: boolean }` | Maximize/restore the animation window |
 
-#### 相机
+#### Camera
 
-| 命令 | 参数 | 说明 |
-|------|------|------|
-| `setCameraPosition` | `{ position: [x,y,z], target?: [x,y,z] }` | 设置相机位置和观察目标 |
-| `resetCamera` | — | 重置相机到默认位置 `(0, -6, 4)`，看向原点 |
-| `zoomToFit` | `{ padding?: number }` | 缩放适配所有可见几何体（`padding` 默认 1.5） |
-| `setCameraMode` | `{ value: 'perspective' \| 'orthographic' }` | 切换透视/正交投影 |
+| Command | Parameters | Description |
+|---------|-----------|-------------|
+| `setCameraPosition` | `{ position: [x,y,z], target?: [x,y,z] }` | Set camera position and look-at target |
+| `resetCamera` | — | Reset camera to default position `(0, -6, 4)`, looking at origin |
+| `zoomToFit` | `{ padding?: number }` | Zoom to fit all visible geometry (`padding` defaults to 1.5) |
+| `setCameraMode` | `{ value: 'perspective' \| 'orthographic' }` | Switch perspective/orthographic projection |
 
-#### 选择 & 工具
+#### Selection & Tools
 
-| 命令 | 参数 | 说明 |
-|------|------|------|
-| `clearSelection` | — | 清除选中 |
-| `getSelection` | — | 获取当前选中部件列表 |
-| `setActiveTool` | `{ value: 'view' \| 'objectTransform' }` | 切换查看/变换工具 |
-| `setTransformMode` | `{ value: 'translate' \| 'rotate' \| 'scale' }` | 设置变换 gizmo 模式 |
+| Command | Parameters | Description |
+|---------|-----------|-------------|
+| `clearSelection` | — | Clear selection |
+| `getSelection` | — | Get currently selected parts |
+| `setActiveTool` | `{ value: 'view' \| 'objectTransform' }` | Switch view/transform tool |
+| `setTransformMode` | `{ value: 'translate' \| 'rotate' \| 'scale' }` | Set transform gizmo mode |
 
-#### UI 面板
+#### UI Panel
 
-| 命令 | 参数 | 说明 |
-|------|------|------|
-| `toggleRightPanel` | — | 切换右侧场景树面板 |
+| Command | Parameters | Description |
+|---------|-----------|-------------|
+| `toggleRightPanel` | — | Toggle the right scene tree panel |
 
-#### 截屏
+#### Screenshot
 
-| 命令 | 参数 | 说明 |
-|------|------|------|
-| `takeScreenshot` | `{ width?: number, height?: number }` | 截取当前视口，返回 base64 PNG data URL |
+| Command | Parameters | Description |
+|---------|-----------|-------------|
+| `takeScreenshot` | `{ width?: number, height?: number }` | Capture the current viewport, returns a base64 PNG data URL |
 
-#### 代码注入（AI 生成自定义 UI）
+#### Code Injection (AI-Generated Custom UI)
 
-| 命令 | 参数 | 说明 |
-|------|------|------|
-| `executeCode` | `{ html?: string, css?: string, js?: string, mode?: 'replace' \| 'append' \| 'clear' }` | 🧪 实验性。在 `#ai-layer` 中注入 AI 生成的 UI，可操作场景 |
+| Command | Parameters | Description |
+|---------|-----------|-------------|
+| `executeCode` | `{ html?: string, css?: string, js?: string, mode?: 'replace' \| 'append' \| 'clear' }` | 🧪 Experimental. Injects AI-generated UI into `#ai-layer` that can manipulate the scene |
 
-> `executeCode` 是 AI 生成自定义 UI 的入口，**当前为实验性功能**，接口和行为可能在未来版本中调整。详见 [AI Code Injection](./AI_CODE_INJECTION.md)。
+> `executeCode` is the entry point for AI-generated custom UI. **Currently experimental** — the interface and behavior may change in future versions. See [AI Code Injection](./AI_CODE_INJECTION.md).
 
-内置三个 Demo 可直接 `node demos/<name>.mjs` 执行，向本地 viewer 注入动画控制面板：
+Three built-in demos can be run directly via `node demos/<name>.mjs` to inject animation control panels into the local viewer:
 
-| Demo | 说明 |
-|------|------|
-| `gsap-rotate-demo.mjs` | 旋转控制面板 — 相机环绕/物体自转、速度、缓动、轴选择 |
-| `gsap-assemble-demo.mjs` | 装配动画 — 零件自下而上逐个落位，可调节落高、时长、着陆缓动 |
-| `gsap-explode-demo.mjs` | 爆炸图动画 — 零件沿径向飞散，可调距离、stagger、时长、缓动 |
+| Demo | Description |
+|------|-------------|
+| `gsap-rotate-demo.mjs` | Rotation control panel — camera orbit / object rotation, speed, easing, axis selection |
+| `gsap-assemble-demo.mjs` | Assembly animation — parts settle from bottom to top, adjustable drop height, duration, landing easing |
+| `gsap-explode-demo.mjs` | Exploded view — parts scatter radially, adjustable distance, stagger, duration, easing |
 
 ---
 
-## 五、loadModel 命令详解
+## 5. loadModel Command Details
 
-### 请求
+### Request
 
 ```js
 { type: '3d-viewer', id: 'load-1', command: 'loadModel', params: { url: 'https://example.com/model.glb' } }
-// 或 base64 数据（小文件）：
+// Or base64 data (small files):
 { type: '3d-viewer', id: 'load-1', command: 'loadModel', params: { data: 'data:model/gltf-binary;base64,...' } }
 ```
 
-### 响应（SSE/HTTP 通道）
+### Response (SSE/HTTP Channel)
 
-SSE handler `await` 异步结果，阻塞直到模型完全加载后返回：
+The SSE handler `await`s the async result, blocking until the model is fully loaded:
 
 ```json
 {
@@ -346,7 +345,7 @@ SSE handler `await` 异步结果，阻塞直到模型完全加载后返回：
 }
 ```
 
-失败时返回：
+On failure:
 
 ```json
 {
@@ -358,94 +357,21 @@ SSE handler `await` 异步结果，阻塞直到模型完全加载后返回：
 }
 ```
 
-### 执行流程
+### Execution Flow
 
-1. AI 调用 MCP `load_model` → POST `/api/command` → serve.mjs SSE 到浏览器
-2. 浏览器 SSE handler `await executeCommand(msg)`
-3. `loadModel` 返回 Promise，内部执行 `fetch` → `detectFormat` → (可选 STEP→GLB 转换) → `loadFormat` → `addLoadedFile`
-4. 完成后 handler POST `/api/result`，serve.mjs 唤醒 MCP Promise
-5. AI 拿到包含 `{ fileId, fileName, format, partCount, parts }` 的完整响应
-
----
-
-## 六、generateScadModel 命令详解
-
-通过 OpenSCAD 代码生成 3D 模型。在 Web Worker 中通过 CDN 加载 OpenSCAD 编译器（openscad-wasm-prebuilt）并编译 SCAD 代码。
-
-### 请求
-
-```js
-{
-  type: '3d-viewer',
-  id: 'gen-1',
-  command: 'generateScadModel',
-  params: {
-    code: "difference() { cube([10,20,30], center=true); cylinder(r=5, h=35, center=true); }",
-    name: 'my-part',
-    mode: 'replace'
-  }
-}
-```
-
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| `code` | string | **是** | — | OpenSCAD 源代码 |
-| `name` | string | 否 | `"generated-model"` | 场景树中显示的模型名称 |
-| `mode` | `"replace"` \| `"append"` | 否 | `"replace"` | `replace` 清空现有模型后加载，`append` 追加到场景 |
-
-### 响应（SSE/HTTP 通道）
-
-```json
-{
-  "type": "3d-viewer",
-  "id": "gen-1",
-  "command": "generateScadModel",
-  "status": "success",
-  "data": {
-    "fileId": "uuid-xxx",
-    "format": "stl",
-    "triangleCount": 2188,
-    "renderMs": 501
-  }
-}
-```
-
-### 执行流程
-
-1. Skill/AI 生成 OpenSCAD 代码
-2. `generateScadModel` 命令 → Web Worker 加载 openscad-wasm
-3. Worker 调用 `callMain` 将 SCAD 编译为 mesh 数据
-4. mesh 数据通过 `loadFormat` 管线渲染
-5. `callMain` 为 single-shot（调用后 WASM 状态损坏），每次编译后 Worker terminate
-
-### 典型场景
-
-```bash
-# Skill 生成一个 M8 螺栓
-curl -X POST http://localhost:4273/api/command \
-  -H "Content-Type: application/json" \
-  -d '{"type":"3d-viewer","id":"gen-1","command":"generateScadModel","params":{
-    "code": "module hex_bolt(d=8,l=40){cylinder(r=d/2,h=l,$fn=6);} hex_bolt();",
-    "name": "M8-bolt"
-  }}'
-
-# 追加齿轮到场景
-curl -X POST http://localhost:4273/api/command \
-  -H "Content-Type: application/json" \
-  -d '{"type":"3d-viewer","id":"gen-2","command":"generateScadModel","params":{
-    "code": "difference(){cylinder(r=20,h=5,$fn=50);for(i=[0:7])rotate([0,0,i*45])translate([15,0,-1])cylinder(r=3,h=7,$fn=20);}",
-    "name": "gear",
-    "mode": "append"
-  }}'
-```
+1. AI calls MCP `load_model` → POST `/api/command` → serve.mjs SSE to browser
+2. Browser SSE handler `await executeCommand(msg)`
+3. `loadModel` returns a Promise, internally executes `fetch` → `detectFormat` → (optional STEP→GLB conversion) → `loadFormat` → `addLoadedFile`
+4. On completion, handler POSTs to `/api/result`, serve.mjs resolves the MCP Promise
+5. AI receives the full response containing `{ fileId, fileName, format, partCount, parts }`
 
 ---
 
-## 七、exportModel 命令详解
+## 6. exportModel Command Details
 
-将当前场景中所有可见模型导出为 GLB 或 STL 格式。**导出数据通过 API 响应返回（base64 编码的二进制数据）**，UI 工具栏的 Export 按钮触发浏览器下载。
+Export all visible models in the current scene to GLB or STL format. **Exported data is returned via the API response (base64-encoded binary data)**. The Export button in the UI toolbar triggers a browser download.
 
-### 请求
+### Request
 
 ```js
 {
@@ -458,11 +384,11 @@ curl -X POST http://localhost:4273/api/command \
 }
 ```
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| `format` | `"glb"` \| `"stl"` | **是** | — | 导出格式。GLB 保留材质，STL 纯几何（无材质） |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `format` | `"glb"` \| `"stl"` | **Yes** | — | Export format. GLB preserves materials, STL is geometry-only (no materials) |
 
-### 响应（SSE/HTTP 通道）
+### Response (SSE/HTTP Channel)
 
 ```json
 {
@@ -471,20 +397,20 @@ curl -X POST http://localhost:4273/api/command \
   "command": "exportModel",
   "status": "success",
   "data": {
-    "base64": "Z2xURgIAAAB...（base64 编码）",
+    "base64": "Z2xURgIAAAB...（base64 encoded）",
     "byteLength": 43984,
     "format": "stl"
   }
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `data.base64` | string | base64 编码的二进制数据（GLB 或 STL） |
-| `data.byteLength` | number | 原始字节数（解码后大小） |
-| `data.format` | string | 导出格式（`"glb"` 或 `"stl"`） |
+| Field | Type | Description |
+|-------|------|-------------|
+| `data.base64` | string | Base64-encoded binary data (GLB or STL) |
+| `data.byteLength` | number | Original byte count (size after decoding) |
+| `data.format` | string | Export format (`"glb"` or `"stl"`) |
 
-场景中无可导出几何体时返回：
+When there is no exportable geometry in the scene:
 
 ```json
 {
@@ -496,30 +422,30 @@ curl -X POST http://localhost:4273/api/command \
 }
 ```
 
-### 执行流程
+### Execution Flow
 
-1. `exportModel` 命令收集 R3F 场景中所有可见的 `THREE.Mesh`
-2. 根据 `format` 参数选择导出器：
-   - **STL** — 使用 Three.js `STLExporter`，导出世界空间坐标，无材质
-   - **GLB** — 使用 Three.js `GLTFExporter`，保留当前生效的材质（含用户修改）
-3. 导出结果编码为 base64，通过 API 响应返回（SSE await 完整结果后同步返回）
+1. `exportModel` collects all visible `THREE.Mesh` objects from the R3F scene
+2. Selects the exporter based on the `format` parameter:
+   - **STL** — uses Three.js `STLExporter`, exports in world-space coordinates, no materials
+   - **GLB** — uses Three.js `GLTFExporter`, preserves currently active materials (including user modifications)
+3. The export result is encoded as base64 and returned via the API response (SSE awaits the full result before returning synchronously)
 
-### 典型场景
+### Typical Usage
 
 ```bash
-# 导出为 GLB（保留材质），解码保存到文件
+# Export as GLB (preserves materials), decode and save to file
 curl -X POST http://localhost:4273/api/command \
   -H "Content-Type: application/json" \
   -d '{"type":"3d-viewer","id":"exp-1","command":"exportModel","params":{"format":"glb"}}' \
   | jq -r '.data.base64' | base64 -d > model.glb
 
-# 导出为 STL（纯几何）
+# Export as STL (geometry only)
 curl -X POST http://localhost:4273/api/command \
   -H "Content-Type: application/json" \
   -d '{"type":"3d-viewer","id":"exp-2","command":"exportModel","params":{"format":"stl"}}' \
   | jq -r '.data.base64' | base64 -d > model.stl
 ```
 
-收到成功响应后，`data.base64` 中包含 base64 编码的二进制数据，base64 解码后即为完整的 GLB 或 STL 文件。AI 可由此获取导出数据，将其保存到 `models/` 目录，或通过 `loadModel` 重新加载。
+After receiving a successful response, `data.base64` contains base64-encoded binary data. Decoding the base64 yields the complete GLB or STL file. AI can use this to save the exported data to the `models/` directory, or reload it via `loadModel`.
 
 ---

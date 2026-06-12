@@ -121,9 +121,11 @@ After viewing is complete, shut down the local HTTP service to release the port.
 
 When the user describes a 3D model in natural language (e.g. "a gear with 20 teeth", "a hex head bolt"), follow these steps:
 
-1. Write OpenSCAD code based on the user's description, then save it to the `models/` directory with a `.scad` extension.
+1. First, describe your understanding of the user's modeling requirements — this way, if your understanding is off, the user can correct you right away. Assume the user does not know programming or OpenSCAD. Describe how you plan to model it in plain language.
 
-2. Then execute Step 3 and subsequent steps from the workflow above.
+2. Write OpenSCAD code based on the user's description, then save it to the `models/` directory with a `.scad` extension.
+
+3. Then execute Step 3 (Start local HTTP server) and subsequent steps from the workflow above.
 
 > **Note**: The first SCAD compilation needs to download `openscad.wasm` (~13MB), which may take several tens of seconds. Please be patient.
 >
@@ -146,54 +148,4 @@ skills/3d_viewer/
 └── models/               # AI copies models to this directory
 ```
 
-## API Command List
 
-| Category | Command | Parameters | Description |
-|----------|---------|------------|-------------|
-| Model | `loadModel` | `{ url \| data }` | Load model from URL or base64 |
-| Model | `generateScadModel` | `{ code, name?, mode? }` | Generate model from OpenSCAD code |
-| Model | `getModelInfo` | — | Get current model info |
-| Model | `resetViewer` | — | Clear scene |
-| Model | `exportModel` | `{ format }` | Export scene as GLB/STL (base64) |
-| Theme | `setTheme` | `{ value }` | Switch theme (light/dark/system) |
-| Theme | `getTheme` | — | Get current theme |
-| Language | `setLanguage` | `{ value }` | Switch UI language |
-| Language | `getLanguage` | — | Get current language |
-| Env Map | `setEnv` | `{ value }` | Set environment map |
-| Env Map | `getEnv` | — | Get current env map |
-| Env Map | `setEnvIntensity` | `{ value }` | Set env intensity 0-5 |
-| Env Map | `setEnvRotation` | `{ value }` | Rotate env map (radians) |
-| Env Map | `loadEnvFile` | `{ url, name }` | Load custom HDR/EXR |
-| Material | `getMaterialPresets` | — | List 29 material presets |
-| Material | `setPartMaterialByPreset` | `{ preset, partName? }` | Apply preset to part |
-| Material | `setPartMaterial` | `{ appearance, partName? }` | Apply custom material |
-| Material | `getPartMaterial` | `{ partName? }` | Get part material state |
-| Animation | `getAnimationInfo` | — | List animations & state |
-| Animation | `playAnimation` | — | Play selected animation |
-| Animation | `pauseAnimation` | — | Pause |
-| Animation | `stopAnimation` | — | Stop and rewind |
-| Animation | `selectAnimation` | `{ index }` | Select animation by index |
-| Animation | `seek` | `{ time }` | Seek to time (seconds) |
-| Animation | `setSpeed` | `{ value }` | Set playback speed |
-| Animation | `setAnimationMaximized` | `{ value }` | Toggle animation panel |
-| Camera | `setCameraPosition` | `{ position, target? }` | Set camera position/target |
-| Camera | `resetCamera` | — | Reset to default |
-| Camera | `zoomToFit` | `{ padding? }` | Fit all visible geometry |
-| Camera | `setCameraMode` | `{ value }` | Perspective/orthographic |
-| Selection | `clearSelection` | — | Clear selection |
-| Selection | `getSelection` | — | Get selected parts |
-| Selection | `setActiveTool` | `{ value }` | View/transform tool |
-| Selection | `setTransformMode` | `{ value }` | Translate/rotate/scale |
-| UI | `toggleRightPanel` | — | Toggle scene tree panel |
-| Screenshot | `takeScreenshot` | `{ width?, height? }` | Capture viewport (base64 PNG) |
-| Code | `executeCode` | `{ html?, css?, js?, mode? }` | Inject custom UI (experimental) |
-
-> See [AI_CONTROL_API.md](./docs/AI_CONTROL_API.md) for complete parameter types, response formats, error codes, and detailed command behavior.
-
-## AI Code Injection
-
-> **Experimental.** `executeCode` injects AI-generated HTML/CSS/JS into a sandboxed DOM layer (`#ai-layer`). Injected code can call `viewerAPI` to query scene state, control camera, animate parts with GSAP, etc.
->
-> Three built-in demos (`node demos/<name>.mjs`): `gsap-rotate-demo.mjs` (rotation control panel), `gsap-assemble-demo.mjs` (assembly animation), `gsap-explode-demo.mjs` (explosion animation).
->
-> See [AI_CODE_INJECTION.md](./docs/AI_CODE_INJECTION.md).

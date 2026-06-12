@@ -2,6 +2,11 @@ param(
     [string]$OutputDir = (Split-Path $PSScriptRoot -Parent)
 )
 
+# Package 3D Viewer skill into two language-specific zip files:
+#   3d_viewer_skill_en.zip — English package (SKILL.md + AI_CONTROL_API.md appended)
+#   3d_viewer_skill_cn.zip — Chinese package (SKILL_cn.md → SKILL.md + AI_CONTROL_API_cn.md appended)
+# Usage: .\package-skill.ps1 [[-OutputDir] <path>]   (default: project root)
+
 $ErrorActionPreference = 'Stop'
 $srcDir = (Resolve-Path (Join-Path $PSScriptRoot ".." "skills" "3d_viewer")).Path
 $OutputDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDir)
@@ -21,41 +26,73 @@ $excludePatterns = @(
 
 $allFiles = Get-ChildItem $srcDir -Recurse -File
 
-function Write-Zip($files, $outputPath, $renameMap) {
-    Write-Host "Packaging $($files.Count) files to $outputPath ..."
-    if (Test-Path $outputPath) { Remove-Item $outputPath -Force }
-    $zip = [System.IO.Compression.ZipFile]::Open($outputPath, [System.IO.Compression.ZipArchiveMode]::Create)
-    try {
-        foreach ($file in $files) {
-            $rel = $file.FullName.Substring($srcDir.Length + 1)
-            if ($renameMap.ContainsKey($rel)) {
-                $rel = $renameMap[$rel]
-            }
-            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $file.FullName, $rel, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
-        }
-    } finally {
-        $zip.Dispose()
+function Copy-FileToDir($srcBase, $file, $destDir, $renameMap) {
+    $rel = $file.FullName.Substring($srcBase.Length + 1)
+    if ($renameMap -and $renameMap.ContainsKey($rel)) {
+        $rel = $renameMap[$rel]
     }
+    $dest = Join-Path $destDir $rel
+    $parent = Split-Path $dest -Parent
+    if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
+    Copy-Item $file.FullName $dest -Force
+}
+
+function Write-ZipFromDir($sourceDir, $outputPath) {
+    Write-Host "Packaging files from $sourceDir to $outputPath ..."
+    if (Test-Path $outputPath) { Remove-Item $outputPath -Force }
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($sourceDir, $outputPath, [System.IO.Compression.CompressionLevel]::Optimal, $false)
     Write-Host "Done: $outputPath"
 }
 
 # --- English package ---
-$enFiles = $allFiles | Where-Object {
-    $rel = $_.FullName.Substring($srcDir.Length + 1)
-    $rel -notlike 'SKILL_cn.md' -and
-    -not ($excludePatterns | Where-Object { $rel -like $_ })
+$enTmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
+New-Item -ItemType Directory -Path $enTmpDir | Out-Null
+try {
+    foreach ($file in $allFiles) {
+        $rel = $file.FullName.Substring($srcDir.Length + 1)
+        $excluded = $false
+        foreach ($pattern in $excludePatterns) {
+            if ($rel -like $pattern) { $excluded = $true; break }
+        }
+        if ($excluded -or ($rel -eq 'SKILL_cn.md')) { continue }
+        Copy-FileToDir $srcDir $file $enTmpDir $null
+    }
+
+    $skillPath = Join-Path $enTmpDir "SKILL.md"
+    $apiContent = Get-Content (Join-Path $srcDir "docs\AI_CONTROL_API.md") -Raw
+    Add-Content -Path $skillPath -Value "`n$apiContent"
+
+    $enOutput = Join-Path $OutputDir "3d_viewer_skill_en.zip"
+    Write-ZipFromDir $enTmpDir $enOutput
 }
-$enOutput = Join-Path $OutputDir "3d_viewer_skill_en.zip"
-Write-Zip $enFiles $enOutput @{}
+finally {
+    Remove-Item -Path $enTmpDir -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 # --- Chinese package ---
-$cnFiles = $allFiles | Where-Object {
-    $rel = $_.FullName.Substring($srcDir.Length + 1)
-    -not ($excludePatterns | Where-Object { $rel -like $_ })
+$cnTmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
+New-Item -ItemType Directory -Path $cnTmpDir | Out-Null
+try {
+    foreach ($file in $allFiles) {
+        $rel = $file.FullName.Substring($srcDir.Length + 1)
+        $excluded = $false
+        foreach ($pattern in $excludePatterns) {
+            if ($rel -like $pattern) { $excluded = $true; break }
+        }
+        if ($excluded -or ($rel -eq 'SKILL.md') -or ($rel -eq 'SKILL_cn.md')) { continue }
+        Copy-FileToDir $srcDir $file $cnTmpDir $null
+    }
+
+    Copy-Item (Join-Path $srcDir "SKILL.md") (Join-Path $cnTmpDir "SKILL_en.md")
+
+    $cnSkillPath = Join-Path $cnTmpDir "SKILL.md"
+    Copy-Item (Join-Path $srcDir "SKILL_cn.md") $cnSkillPath
+    $cnApiContent = Get-Content (Join-Path $srcDir "docs\AI_CONTROL_API_cn.md") -Raw
+    Add-Content -Path $cnSkillPath -Value "`n$cnApiContent"
+
+    $cnOutput = Join-Path $OutputDir "3d_viewer_skill_cn.zip"
+    Write-ZipFromDir $cnTmpDir $cnOutput
 }
-$cnOutput = Join-Path $OutputDir "3d_viewer_skill_cn.zip"
-$renameMap = @{
-    'SKILL.md' = 'SKILL_en.md'
-    'SKILL_cn.md' = 'SKILL.md'
+finally {
+    Remove-Item -Path $cnTmpDir -Recurse -Force -ErrorAction SilentlyContinue
 }
-Write-Zip $cnFiles $cnOutput $renameMap

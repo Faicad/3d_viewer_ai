@@ -121,9 +121,11 @@ window.postMessage({ type: '3d-viewer', id: 'req-001', command: 'setTheme', para
 
 当用户用自然语言描述 3D 模型需求时（如"一个 20 齿的齿轮"、"一个内六角螺栓"），按以下步骤操作：
 
-1. 根据用户描述编写 OpenSCAD 代码, 然后保存到models目录，存为后缀名为scad的文件。
+1. 请描述你对用户建模需求的理解，以及你是如何建模的（非代码层面）。一定要先输出你对这次建模的需求理解，这样如果你理解有的偏差的话，用户可以随时修正。你要假定用户不懂编程，不懂OpenSCAD。用通俗的语言描述你打算如何建模。
 
-2. 然后执行工作流程描述的第三步以及后续步骤。
+2. 根据对用户需求的理解编写 OpenSCAD 代码, 然后保存到models目录，存为后缀名为scad的文件。
+
+3. 然后执行上面的工作流程描述的第三步（启动本地 HTTP 服务）以及后续步骤。
 
 
 > **注意**：首次编译 SCAD 文件时需要下载很大的 `openscad.wasm` 包（约 13MB），可能要几十秒，需要耐心等待。
@@ -145,55 +147,3 @@ skills/3d_viewer/
 ├── env/                  # 环境贴图
 └── models/               # AI 复制模型到此目录
 ```
-
-## API 命令清单
-
-| 分类 | 命令 | 参数 | 说明 |
-|------|------|------|------|
-| 模型 | `loadModel` | `{ url \| data }` | 从 URL 或 base64 加载模型 |
-| 模型 | `generateScadModel` | `{ code, name?, mode? }` | 根据 OpenSCAD 代码生成模型 |
-| 模型 | `getModelInfo` | — | 获取当前模型信息 |
-| 模型 | `resetViewer` | — | 清空场景 |
-| 模型 | `exportModel` | `{ format }` | 导出为 GLB/STL（base64） |
-| 主题 | `setTheme` | `{ value }` | 切换主题（light/dark/system） |
-| 主题 | `getTheme` | — | 获取当前主题 |
-| 语言 | `setLanguage` | `{ value }` | 切换界面语言 |
-| 语言 | `getLanguage` | — | 获取当前语言 |
-| 环境 | `setEnv` | `{ value }` | 设置环境贴图 |
-| 环境 | `getEnv` | — | 获取当前环境贴图 |
-| 环境 | `setEnvIntensity` | `{ value }` | 设置环境强度 0-5 |
-| 环境 | `setEnvRotation` | `{ value }` | 旋转环境贴图（弧度） |
-| 环境 | `loadEnvFile` | `{ url, name }` | 加载自定义 HDR/EXR |
-| 材质 | `getMaterialPresets` | — | 列出 29 种材质预设 |
-| 材质 | `setPartMaterialByPreset` | `{ preset, partName? }` | 应用预设材质到零件 |
-| 材质 | `setPartMaterial` | `{ appearance, partName? }` | 应用自定义材质 |
-| 材质 | `getPartMaterial` | `{ partName? }` | 获取零件材质状态 |
-| 动画 | `getAnimationInfo` | — | 获取动画列表与状态 |
-| 动画 | `playAnimation` | — | 播放选中动画 |
-| 动画 | `pauseAnimation` | — | 暂停 |
-| 动画 | `stopAnimation` | — | 停止并回到起点 |
-| 动画 | `selectAnimation` | `{ index }` | 按索引选择动画 |
-| 动画 | `seek` | `{ time }` | 跳转到指定时间（秒） |
-| 动画 | `setSpeed` | `{ value }` | 设置播放速度 |
-| 动画 | `setAnimationMaximized` | `{ value }` | 最大化/还原动画面板 |
-| 相机 | `setCameraPosition` | `{ position, target? }` | 设置相机位置与目标 |
-| 相机 | `resetCamera` | — | 重置为默认位置 |
-| 相机 | `zoomToFit` | `{ padding? }` | 缩放适配所有几何体 |
-| 相机 | `setCameraMode` | `{ value }` | 透视/正交投影 |
-| 选择 | `clearSelection` | — | 清除选中 |
-| 选择 | `getSelection` | — | 获取选中部件列表 |
-| 选择 | `setActiveTool` | `{ value }` | 查看/变换工具 |
-| 选择 | `setTransformMode` | `{ value }` | 平移/旋转/缩放 |
-| UI | `toggleRightPanel` | — | 切换场景树面板 |
-| 截图 | `takeScreenshot` | `{ width?, height? }` | 截取视口（base64 PNG） |
-| 代码 | `executeCode` | `{ html?, css?, js?, mode? }` | 注入自定义 UI（实验性） |
-
-> 完整参数类型、响应格式、错误码及详细行为说明见 [AI_CONTROL_API.md](./docs/AI_CONTROL_API.md)。
-
-## AI 代码注入
-
-> **实验性功能。** `executeCode` 命令将 AI 生成的 HTML/CSS/JS 注入独立沙盒 DOM 层（`#ai-layer`）。注入代码可调用 `viewerAPI` 查询场景状态、控制相机、使用 GSAP 驱动零件动画等。
->
-> 三个内置 Demo（`node demos/<name>.mjs` 运行）：`gsap-rotate-demo.mjs`（旋转控制面板）、`gsap-assemble-demo.mjs`（装配动画）、`gsap-explode-demo.mjs`（爆炸图动画）。
->
-> 详见 [AI_CODE_INJECTION.md](./docs/AI_CODE_INJECTION.md)。
