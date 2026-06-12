@@ -116,45 +116,19 @@ window.postMessage({ type: '3d-viewer', id: 'req-001', command: 'setTheme', para
 ### 第 6 步：清理
 查看结束后，关闭本地 HTTP 服务，释放端口。
 
+
 ## AI 模型生成
 
 当用户用自然语言描述 3D 模型需求时（如"一个 20 齿的齿轮"、"一个内六角螺栓"），按以下步骤操作：
 
-### 第 1 步：启动本地 HTTP 服务
+1. 根据用户描述编写 OpenSCAD 代码, 然后保存到models目录，存为后缀名为scad的文件。
 
-按照上方工作流程中的方式启动 HTTP 服务。
+2. 然后执行工作流程描述的第三步以及后续步骤。
 
-### 第 2 步：打开浏览器访问默认地址
-
-```
-http://localhost:4273/
-```
-
-### 第 3 步：根据用户描述编写 OpenSCAD 代码
-
-### 第 4 步：通过 `generateScadModel` 命令发送
-
-```bash
-curl -X POST http://localhost:4273/api/command \
-  -H "Content-Type: application/json" \
-  -d '{"type":"3d-viewer","id":"gen-1","command":"generateScadModel","params":{
-    "code": "difference() { cube([10,20,30], center=true); cylinder(r=5, h=35, center=true); }",
-    "name": "my-part",
-    "mode": "replace"
-  }}'
-```
-
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| `code` | string | 是 | — | OpenSCAD 源代码 |
-| `name` | string | 否 | `"generated-model"` | 场景树中显示的名称 |
-| `mode` | `"replace"` \| `"append"` | 否 | `"replace"` | `replace` 清空现有模型；`append` 追加到场景 |
-
-此时模型就已经在浏览器中了。
 
 > **注意**：首次编译 SCAD 文件时需要下载很大的 `openscad.wasm` 包（约 13MB），可能要几十秒，需要耐心等待。
 
-> **注意**：generateScadModel会自动生成模型mesh并加载到3D_viewer中，不直接生成stl格式模型文件。如果用户需要stl格式文件，需要使用导出功能。
+> **注意**：编译后自动生成模型mesh并加载到3D_viewer中，不直接生成stl格式模型文件。如果用户需要stl格式文件，需要使用导出功能。
 
 
 ## 技能目录结构

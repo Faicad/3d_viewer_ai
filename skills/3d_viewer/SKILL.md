@@ -119,43 +119,15 @@ After viewing is complete, shut down the local HTTP service to release the port.
 
 ## AI Model Generation
 
-When the user describes a 3D model in natural language (e.g. "a gear with 20 teeth", "a bolt with hex head"), follow these steps:
+When the user describes a 3D model in natural language (e.g. "a gear with 20 teeth", "a hex head bolt"), follow these steps:
 
-### Step 1: Start local HTTP server (run in background, do NOT set timeout)
+1. Write OpenSCAD code based on the user's description, then save it to the `models/` directory with a `.scad` extension.
 
-Start the HTTP service as described in the workflow above.
-
-### Step 2: Open browser to default address
-
-```
-http://localhost:4273/
-```
-
-### Step 3: Write the OpenSCAD code based on the user's description
-
-### Step 4: Send via the `generateScadModel` command
-
-```bash
-curl -X POST http://localhost:4273/api/command \
-  -H "Content-Type: application/json" \
-  -d '{"type":"3d-viewer","id":"gen-1","command":"generateScadModel","params":{
-    "code": "difference() { cube([10,20,30], center=true); cylinder(r=5, h=35, center=true); }",
-    "name": "my-part",
-    "mode": "replace"
-  }}'
-```
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `code` | string | Yes | — | OpenSCAD source code |
-| `name` | string | No | `"generated-model"` | Display name in scene tree |
-| `mode` | `"replace"` \| `"append"` | No | `"replace"` | `replace` clears existing models; `append` adds to scene |
-
-The model will now appear in the browser.
+2. Then execute Step 3 and subsequent steps from the workflow above.
 
 > **Note**: The first SCAD compilation needs to download `openscad.wasm` (~13MB), which may take several tens of seconds. Please be patient.
 >
-> **Note**: `generateScadModel` automatically generates the model mesh and loads it into the 3D viewer; it does not directly produce an STL file. If the user needs an STL file, use the export functionality.
+> **Note**: Compilation automatically generates the model mesh and loads it into the 3D viewer; it does not directly produce an STL file. If the user needs an STL file, use the export functionality.
 
 
 ## Skill Directory Structure
