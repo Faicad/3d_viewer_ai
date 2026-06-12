@@ -183,8 +183,61 @@ skills/3d_viewer/
 
 ## 注意事项
 
-- 查看器是完全离线的——所有 WASM 和 JS 都在本地，无需网络。
 - STEP 文件需要 WASM 加载 OCCT 内核，首次加载较慢（约 1-2 秒）。
 - SCAD 模型生成首次使用时会从 CDN 加载 `openscad.wasm`（约 13MB），后续编译很快（0.5–3 秒）。
 - 查看器以 `file://` 协议无法正常加载 WASM，务必通过 HTTP 服务提供。
 - 模型文件需要复制到 HTTP 服务目录下（`models/` 子目录），文件才能被浏览器访问。
+
+## API 命令清单
+
+> API 完整文档：[AI_CONTROL_API.md](./docs/AI_CONTROL_API.md)
+
+| 分类 | 命令 | 参数 | 说明 |
+|------|------|------|------|
+| 模型 | `loadModel` | `{ url \| data }` | 从 URL 或 base64 加载模型 |
+| 模型 | `generateScadModel` | `{ code, name?, mode? }` | 根据 OpenSCAD 代码生成模型 |
+| 模型 | `getModelInfo` | — | 获取当前模型信息 |
+| 模型 | `resetViewer` | — | 清空场景 |
+| 模型 | `exportModel` | `{ format }` | 导出为 GLB/STL（base64） |
+| 主题 | `setTheme` | `{ value }` | 切换主题（light/dark/system） |
+| 主题 | `getTheme` | — | 获取当前主题 |
+| 语言 | `setLanguage` | `{ value }` | 切换界面语言 |
+| 语言 | `getLanguage` | — | 获取当前语言 |
+| 环境 | `setEnv` | `{ value }` | 设置环境贴图 |
+| 环境 | `getEnv` | — | 获取当前环境贴图 |
+| 环境 | `setEnvIntensity` | `{ value }` | 设置环境强度 0-5 |
+| 环境 | `setEnvRotation` | `{ value }` | 旋转环境贴图（弧度） |
+| 环境 | `loadEnvFile` | `{ url, name }` | 加载自定义 HDR/EXR |
+| 材质 | `getMaterialPresets` | — | 列出 29 种材质预设 |
+| 材质 | `setPartMaterialByPreset` | `{ preset, partName? }` | 应用预设材质到零件 |
+| 材质 | `setPartMaterial` | `{ appearance, partName? }` | 应用自定义材质 |
+| 材质 | `getPartMaterial` | `{ partName? }` | 获取零件材质状态 |
+| 动画 | `getAnimationInfo` | — | 获取动画列表与状态 |
+| 动画 | `playAnimation` | — | 播放选中动画 |
+| 动画 | `pauseAnimation` | — | 暂停 |
+| 动画 | `stopAnimation` | — | 停止并回到起点 |
+| 动画 | `selectAnimation` | `{ index }` | 按索引选择动画 |
+| 动画 | `seek` | `{ time }` | 跳转到指定时间（秒） |
+| 动画 | `setSpeed` | `{ value }` | 设置播放速度 |
+| 动画 | `setAnimationMaximized` | `{ value }` | 最大化/还原动画面板 |
+| 相机 | `setCameraPosition` | `{ position, target? }` | 设置相机位置与目标 |
+| 相机 | `resetCamera` | — | 重置为默认位置 |
+| 相机 | `zoomToFit` | `{ padding? }` | 缩放适配所有几何体 |
+| 相机 | `setCameraMode` | `{ value }` | 透视/正交投影 |
+| 选择 | `clearSelection` | — | 清除选中 |
+| 选择 | `getSelection` | — | 获取选中部件列表 |
+| 选择 | `setActiveTool` | `{ value }` | 查看/变换工具 |
+| 选择 | `setTransformMode` | `{ value }` | 平移/旋转/缩放 |
+| UI | `toggleRightPanel` | — | 切换场景树面板 |
+| 截图 | `takeScreenshot` | `{ width?, height? }` | 截取视口（base64 PNG） |
+| 代码 | `executeCode` | `{ html?, css?, js?, mode? }` | 注入自定义 UI（实验性） |
+
+> 完整参数类型、响应格式、错误码及详细行为说明见 [AI_CONTROL_API.md](./docs/AI_CONTROL_API.md)。
+
+## AI 代码注入
+
+> **实验性功能。** `executeCode` 命令将 AI 生成的 HTML/CSS/JS 注入独立沙盒 DOM 层（`#ai-layer`）。注入代码可调用 `viewerAPI` 查询场景状态、控制相机、使用 GSAP 驱动零件动画等。
+>
+> 三个内置 Demo（`node demos/<name>.mjs` 运行）：`gsap-rotate-demo.mjs`（旋转控制面板）、`gsap-assemble-demo.mjs`（装配动画）、`gsap-explode-demo.mjs`（爆炸图动画）。
+>
+> 详见 [AI_CODE_INJECTION.md](./docs/AI_CODE_INJECTION.md)。
