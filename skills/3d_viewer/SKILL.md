@@ -153,6 +153,8 @@ curl -X POST http://localhost:4273/api/command \
 The model will now appear in the browser.
 
 > **Note**: The first SCAD compilation needs to download `openscad.wasm` (~13MB), which may take several tens of seconds. Please be patient.
+>
+> **Note**: `generateScadModel` automatically generates the model mesh and loads it into the 3D viewer; it does not directly produce an STL file. If the user needs an STL file, use the export functionality.
 
 
 ## Skill Directory Structure

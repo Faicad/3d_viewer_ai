@@ -154,6 +154,8 @@ curl -X POST http://localhost:4273/api/command \
 
 > **注意**：首次编译 SCAD 文件时需要下载很大的 `openscad.wasm` 包（约 13MB），可能要几十秒，需要耐心等待。
 
+> **注意**：generateScadModel会自动生成模型mesh并加载到3D_viewer中，不直接生成stl格式模型文件。如果用户需要stl格式文件，需要使用导出功能。
+
 
 ## 技能目录结构
 
