@@ -3,8 +3,7 @@ name: 3d_viewer
 description: >-
   直接在本地查看 3D 模型文件，无需安装其它大型软件。支持 STL/3MF/STEP/STP/GLB/GLTF/OBJ/PLY/FBX/USDZ/SCAD 等 30+ 种格式。
   支持通过自然语言生成 3D 模型（OpenSCAD）。支持材质编辑、环境贴图、动画播放、线框/拓扑叠加、测量等。
-  触发词：查看这个3D模型, 打开这个STL文件, 浏览STEP模型, 3D模型查看, view this 3D model, open stl file,
-  view step model, 3mf viewer, glb viewer, 生成一个齿轮, 做一个螺栓, generate a gear, create a bolt.
+  触发词：查看这个3D模型, 打开这个STL文件, 浏览STEP模型, 3D模型查看, 生成一个模型, 做一个螺栓, view this 3D model, open stl file,
 license: LGPL-2.0-only
 compatibility:
   - opencode
