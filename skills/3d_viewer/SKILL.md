@@ -85,7 +85,7 @@ The user will **see the model immediately** without needing to open the browser 
 
 Additional initial parameters can be appended:
 ```
-http://localhost:4273/#/workspace?url=./models/<filename>&theme=dark&lang=zh&env=studio_small_08
+http://localhost:4273/#/workspace?url=./models/<filename>&theme=dark&lang=zh
 ```
 
 ### Step 5: Further control (optional)
@@ -174,25 +174,7 @@ skills/3d_viewer/
 └── models/               # AI copies models to this directory
 ```
 
-## URL Parameters
-
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `url` | Load a model file under the HTTP service directory (relative path) | `?url=./models/model.stl` |
-| `theme` | Theme: `light` / `dark` / `system` | `&theme=dark` |
-| `lang` | Language: `zh` / `en` / `es` / `ja` and 20+ more | `&lang=en` |
-| `env` | Environment map: `studio` / `studio_small_08` | `&env=studio_small_08` |
-
-## Notes
-
-- STEP files need WASM to load the OCCT kernel; first load is slower (~1-2 seconds).
-- SCAD model generation loads `openscad.wasm` (~13MB) from CDN on first use; subsequent compilations are fast (0.5–3s).
-- The viewer cannot properly load WASM under the `file://` protocol; it must be served via HTTP.
-- Model files must be copied to the HTTP service directory (`models/` subdirectory) to be accessible by the browser.
-
 ## API Command List
-
-> Full API reference: [AI_CONTROL_API.md](./docs/AI_CONTROL_API.md)
 
 | Category | Command | Parameters | Description |
 |----------|---------|------------|-------------|

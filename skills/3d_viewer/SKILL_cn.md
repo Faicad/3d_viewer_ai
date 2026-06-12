@@ -86,7 +86,7 @@ http://localhost:4273/#/workspace?url=./models/<文件名>
 
 也可附带其他初始参数：
 ```
-http://localhost:4273/#/workspace?url=./models/<文件名>&theme=dark&lang=zh&env=studio_small_08
+http://localhost:4273/#/workspace?url=./models/<文件名>&theme=dark&lang=zh
 ```
 
 ### 第 5 步：进一步控制（可选）
@@ -172,25 +172,7 @@ skills/3d_viewer/
 └── models/               # AI 复制模型到此目录
 ```
 
-## URL 参数
-
-| 参数 | 说明 | 示例 |
-|------|------|------|
-| `url` | 加载 HTTP 服务目录下的模型文件（相对路径） | `?url=./models/model.stl` |
-| `theme` | 主题：`light` / `dark` / `system` | `&theme=dark` |
-| `lang` | 语言：`zh` / `en` / `es` / `ja` 等 20 种 | `&lang=en` |
-| `env` | 环境贴图：`studio` / `studio_small_08` | `&env=studio_small_08` |
-
-## 注意事项
-
-- STEP 文件需要 WASM 加载 OCCT 内核，首次加载较慢（约 1-2 秒）。
-- SCAD 模型生成首次使用时会从 CDN 加载 `openscad.wasm`（约 13MB），后续编译很快（0.5–3 秒）。
-- 查看器以 `file://` 协议无法正常加载 WASM，务必通过 HTTP 服务提供。
-- 模型文件需要复制到 HTTP 服务目录下（`models/` 子目录），文件才能被浏览器访问。
-
 ## API 命令清单
-
-> API 完整文档：[AI_CONTROL_API.md](./docs/AI_CONTROL_API.md)
 
 | 分类 | 命令 | 参数 | 说明 |
 |------|------|------|------|
