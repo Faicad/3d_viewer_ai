@@ -112,13 +112,28 @@ curl -X POST http://localhost:4273/api/command \
 ```js
 window.postMessage({ type: '3d-viewer', command: 'setTheme', params: { value: 'dark' } }, '*')
 ```
+### Step 6: Cleanup
+After viewing is complete, shut down the local HTTP service to release the port.
 
-### AI Model Generation
 
-When the user describes a 3D model in natural language (e.g. "a gear with 20 teeth", "a bolt with hex head"), you can generate it directly using OpenSCAD:
+## AI Model Generation
 
-1. Write the OpenSCAD code based on the user's description
-2. Send it via the `generateScadModel` command:
+When the user describes a 3D model in natural language (e.g. "a gear with 20 teeth", "a bolt with hex head"), follow these steps:
+
+### Step 1: Start local HTTP server (run in background, do NOT set timeout)
+
+Start the HTTP service as described in the workflow above.
+
+### Step 2: Open browser to default address
+
+```
+http://localhost:4273/
+```
+
+### Step 3: Write the OpenSCAD code based on the user's description
+
+### Step 4: Send via the `generateScadModel` command
+
 ```bash
 curl -X POST http://localhost:4273/api/command \
   -H "Content-Type: application/json" \
@@ -135,19 +150,10 @@ curl -X POST http://localhost:4273/api/command \
 | `name` | string | No | `"generated-model"` | Display name in scene tree |
 | `mode` | `"replace"` \| `"append"` | No | `"replace"` | `replace` clears existing models; `append` adds to scene |
 
-SCAD code is compiled to STL in-browser via `openscad-wasm` (Web Worker). The model appears in the viewer immediately after compilation (typically 0.5–3s).
+The model will now appear in the browser.
 
-**Multi-part assembly**: use `mode: "append"` for subsequent parts:
-```bash
-# First part replaces everything
-curl ... -d '{"command":"generateScadModel","params":{"code":"...housing...","name":"housing","mode":"replace"}}'
-# Additional parts append
-curl ... -d '{"command":"generateScadModel","params":{"code":"...gear1...","name":"gear1","mode":"append"}}'
-curl ... -d '{"command":"generateScadModel","params":{"code":"...gear2...","name":"gear2","mode":"append"}}'
-```
+> **Note**: The first SCAD compilation needs to download `openscad.wasm` (~13MB), which may take several tens of seconds. Please be patient.
 
-### Step 6: Cleanup
-After viewing is complete, shut down the local HTTP service to release the port.
 
 ## Skill Directory Structure
 

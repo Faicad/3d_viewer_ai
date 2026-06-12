@@ -113,12 +113,27 @@ curl -X POST http://localhost:4273/api/command \
 window.postMessage({ type: '3d-viewer', command: 'setTheme', params: { value: 'dark' } }, '*')
 ```
 
-### AI 模型生成
+### 第 6 步：清理
+查看结束后，关闭本地 HTTP 服务，释放端口。
 
-当用户用自然语言描述 3D 模型需求时（如"一个 20 齿的齿轮"、"一个内六角螺栓"），可直接用 OpenSCAD 生成模型：
+## AI 模型生成
 
-1. 根据用户描述编写 OpenSCAD 代码
-2. 通过 `generateScadModel` 命令发送：
+当用户用自然语言描述 3D 模型需求时（如"一个 20 齿的齿轮"、"一个内六角螺栓"），按以下步骤操作：
+
+### 第 1 步：启动本地 HTTP 服务
+
+按照上方工作流程中的方式启动 HTTP 服务。
+
+### 第 2 步：打开浏览器访问默认地址
+
+```
+http://localhost:4273/
+```
+
+### 第 3 步：根据用户描述编写 OpenSCAD 代码
+
+### 第 4 步：通过 `generateScadModel` 命令发送
+
 ```bash
 curl -X POST http://localhost:4273/api/command \
   -H "Content-Type: application/json" \
@@ -135,19 +150,10 @@ curl -X POST http://localhost:4273/api/command \
 | `name` | string | 否 | `"generated-model"` | 场景树中显示的名称 |
 | `mode` | `"replace"` \| `"append"` | 否 | `"replace"` | `replace` 清空现有模型；`append` 追加到场景 |
 
-SCAD 代码在浏览器内通过 `openscad-wasm`（Web Worker）编译为 STL，编译完成后模型立即显示（通常 0.5–3 秒）。
+此时模型就已经在浏览器中了。
 
-**多零件装配**：后续零件使用 `mode: "append"`：
-```bash
-# 第一个零件替换场景
-curl ... -d '{"command":"generateScadModel","params":{"code":"...壳体...","name":"housing","mode":"replace"}}'
-# 追加更多零件
-curl ... -d '{"command":"generateScadModel","params":{"code":"...齿轮1...","name":"gear1","mode":"append"}}'
-curl ... -d '{"command":"generateScadModel","params":{"code":"...齿轮2...","name":"gear2","mode":"append"}}'
-```
+> **注意**：首次编译 SCAD 文件时需要下载很大的 `openscad.wasm` 包（约 13MB），可能要几十秒，需要耐心等待。
 
-### 第 6 步：清理
-查看结束后，关闭本地 HTTP 服务，释放端口。
 
 ## 技能目录结构
 
