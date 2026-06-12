@@ -62,6 +62,7 @@ try {
     $apiContent = Get-Content (Join-Path $srcDir "docs\AI_CONTROL_API.md") -Raw
     Add-Content -Path $skillPath -Value "`n$apiContent"
 
+    New-Item -ItemType Directory -Path (Join-Path $enTmpDir "models") -Force | Out-Null
     $enOutput = Join-Path $OutputDir "3d_viewer_skill_en.zip"
     Write-ZipFromDir $enTmpDir $enOutput
 }
@@ -90,6 +91,7 @@ try {
     $cnApiContent = Get-Content (Join-Path $srcDir "docs\AI_CONTROL_API_cn.md") -Raw
     Add-Content -Path $cnSkillPath -Value "`n$cnApiContent"
 
+    New-Item -ItemType Directory -Path (Join-Path $cnTmpDir "models") -Force | Out-Null
     $cnOutput = Join-Path $OutputDir "3d_viewer_skill_cn.zip"
     Write-ZipFromDir $cnTmpDir $cnOutput
 }
