@@ -4,8 +4,7 @@ const VIEWER_URL = process.env.MCP_VIEWER_URL || 'http://localhost:4273'
 
 function postCommand(cmd) {
   return new Promise((resolve, reject) => {
-    const id = cmd.id || `mcp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const body = JSON.stringify({ type: '3d-viewer', id, ...cmd })
+    const body = JSON.stringify({ type: '3d-viewer', ...cmd })
     const url = new URL('/api/command', VIEWER_URL)
     const req = http.request({
       hostname: url.hostname, port: url.port, path: url.pathname, method: 'POST',

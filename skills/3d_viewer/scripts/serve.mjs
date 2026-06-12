@@ -81,8 +81,9 @@ const server = http.createServer((req, res) => {
   }
 
   // ---- AI command endpoint -------------------------------------------
-  // All commands must include an "id" field — synchronous mode.
-  // Commands without "id" are deprecated (response carries a warning).
+  // All commands are synchronous — if no "id" is provided, one is
+  // auto-generated. The response is the flattened ApiResponse from
+  // the browser (no extra wrapper).
   // --------------------------------------------------------------------
   if (req.url === '/api/command' && req.method === 'POST') {
     let body = ''
@@ -93,53 +94,54 @@ const server = http.createServer((req, res) => {
         cmd = JSON.parse(body)
       } catch {
         res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'Invalid JSON' }))
+        res.end(JSON.stringify({ type: '3d-viewer', status: 'error', error: 'Invalid JSON' }))
         return
       }
 
       // No connected SSE clients — reject immediately
       if (sseClients.size === 0) {
         res.writeHead(503, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ status: 'error', error: 'No connected clients', delivered: 0 }))
+        res.end(JSON.stringify({ type: '3d-viewer', status: 'error', error: 'No connected clients' }))
         return
       }
 
-      if (cmd.id) {
-        // Synchronous mode: wait for browser to POST /api/result
-        const resultPromise = new Promise((resolve, reject) => {
-          const timer = setTimeout(() => {
-            pendingRequests.delete(cmd.id)
-            reject(new Error(`Command timeout: ${cmd.command}`))
-          }, REQUEST_TIMEOUT)
-          pendingRequests.set(cmd.id, { resolve, reject, timer })
-        })
+      // Auto-generate id if missing
+      let autoId = false
+      if (!cmd.id) {
+        cmd.id = `auto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        autoId = true
+      }
 
-        let delivered = 0
-        for (const client of sseClients) {
-          sendSSE(client, 'command', cmd)
-          delivered++
-        }
+      // Synchronous mode: wait for browser to POST /api/result
+      const resultPromise = new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          pendingRequests.delete(cmd.id)
+          reject(new Error(`Command timeout: ${cmd.command}`))
+        }, REQUEST_TIMEOUT)
+        pendingRequests.set(cmd.id, { resolve, reject, timer })
+      })
 
-        try {
-          const browserResult = await resultPromise
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ status: 'ok', delivered, result: browserResult }))
-        } catch (err) {
-          res.writeHead(504, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ status: 'error', delivered, error: err.message }))
-        }
-      } else {
-        // Fire-and-forget — deprecated, warn AI to use sync mode
-        let delivered = 0
-        for (const client of sseClients) {
-          sendSSE(client, 'command', cmd)
-          delivered++
+      for (const client of sseClients) {
+        sendSSE(client, 'command', cmd)
+      }
+
+      try {
+        const browserResult = await resultPromise
+        // Attach warning if id was auto-generated
+        if (autoId) {
+          browserResult._warning =
+            `Request missing 'id' field — auto-generated '${cmd.id}'. Always include an 'id' field in the request.`
         }
         res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify(browserResult))
+      } catch (err) {
+        res.writeHead(504, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({
-          status: 'ok',
-          delivered,
-          warning: 'Fire-and-forget mode is deprecated. Always include an "id" field in the request to receive the command result synchronously.',
+          type: '3d-viewer',
+          id: cmd.id,
+          command: cmd.command,
+          status: 'error',
+          error: err.message,
         }))
       }
     })

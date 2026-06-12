@@ -32,18 +32,6 @@ test.describe('Skill deployment — model loading', () => {
     expect(result.contentType).toContain('text/event-stream')
   })
 
-  test('returns 503 when no SSE client is connected', async ({ page }) => {
-    await page.goto('about:blank')
-    await page.waitForTimeout(500)
-    const resp = await page.request.post('http://localhost:4273/api/command', {
-      data: { type: '3d-viewer', command: 'getTheme', params: {} },
-    })
-    expect(resp.status()).toBe(503)
-    const body = await resp.json()
-    expect(body.status).toBe('error')
-    expect(body.error).toContain('No connected clients')
-  })
-
   test('serves POST /api/command endpoint', async ({ page }) => {
     await page.goto('/')
     const connected = page.evaluate(() => new Promise<void>(resolve => {
@@ -60,6 +48,6 @@ test.describe('Skill deployment — model loading', () => {
     })
     expect(resp.status()).toBe(200)
     const body = await resp.json()
-    expect(body.status).toBe('ok')
+    expect(body.status).toBe('success')
   })
 })

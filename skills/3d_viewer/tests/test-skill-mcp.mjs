@@ -214,20 +214,22 @@ async function testServerStartsAndServes() {
   assert(html.includes('<!DOCTYPE html>') || html.includes('<html'), 'response is HTML')
   assert(html.includes('id="root"'), 'HTML contains React mount point')
 
-  // Connect SSE first so the API command has a client to deliver to
-  const sseCtrl = new AbortController()
-  await fetch(`http://localhost:${server.port}/api/events`, { signal: sseCtrl.signal })
+  // Without a browser page, commands time out (504). Open a page to verify the API works.
+  const browser = await chromium.launch({ headless: true })
+  const page = await browser.newPage()
+  await page.goto(`http://localhost:${server.port}/#/workspace`, { waitUntil: 'load', timeout: 15000 })
+  await sleep(2000)
 
   const apiResp = await fetch(`http://localhost:${server.port}/api/command`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: '3d-viewer', command: 'getTheme' }),
+    body: JSON.stringify({ type: '3d-viewer', id: 'svr-test-001', command: 'getTheme' }),
   })
   const apiJson = await apiResp.json()
   assert(apiResp.status === 200, `POST /api/command returns 200`)
-  assert(apiJson.status === 'ok', `POST /api/command status: ${apiJson.status}`)
+  assert(apiJson.status === 'success', `POST /api/command status: ${apiJson.status}`)
 
-  sseCtrl.abort()
+  await browser.close()
   stopServer(server)
 }
 
@@ -246,21 +248,18 @@ async function testE2EThemeChange() {
 
   let res = await mcpCall(mcp, 'set_theme', { value: 'dark' })
   const parsed = JSON.parse(res.result.content[0].text)
-  assert(parsed.status === 'ok', `set_theme delivery: ${parsed.status}`)
+  assert(parsed.status === 'success', `set_theme: ${parsed.status}`)
 
   await sleep(1500)
   const isDark = await page.evaluate(() => document.documentElement.classList.contains('dark'))
   assert(isDark === true, 'browser: dark class applied')
 
-  if (parsed.result) {
-    assert(parsed.result.command === 'setTheme', 'sync result: command matches')
-    assert(parsed.result.status === 'success', 'sync result: browser executed successfully')
-    assert(parsed.result.data?.theme === 'dark', 'sync result: browser returned theme=dark')
-  }
+  assert(parsed.command === 'setTheme', 'sync result: command matches')
+  assert(parsed.data?.theme === 'dark', 'sync result: browser returned theme=dark')
 
   res = await mcpCall(mcp, 'set_theme', { value: 'light' })
   const p2 = JSON.parse(res.result.content[0].text)
-  assert(p2.status === 'ok', 'set_theme light delivery ok')
+  assert(p2.status === 'success', 'set_theme light delivery ok')
 
   await sleep(1000)
   const isLight = await page.evaluate(() => !document.documentElement.classList.contains('dark'))
@@ -285,7 +284,7 @@ async function testE2ELanguageChange() {
 
   let res = await mcpCall(mcp, 'set_language', { value: 'en' })
   const p1 = JSON.parse(res.result.content[0].text)
-  assert(p1.status === 'ok', `set_language en: ${p1.status}`)
+  assert(p1.status === 'success', `set_language en: ${p1.status}`)
 
   await sleep(1000)
   const langEn = await page.evaluate(() => document.documentElement.lang)
@@ -293,7 +292,7 @@ async function testE2ELanguageChange() {
 
   res = await mcpCall(mcp, 'set_language', { value: 'zh' })
   const p2 = JSON.parse(res.result.content[0].text)
-  assert(p2.status === 'ok', `set_language zh: ${p2.status}`)
+  assert(p2.status === 'success', `set_language zh: ${p2.status}`)
 
   await sleep(1000)
   const langZh = await page.evaluate(() => document.documentElement.lang)
@@ -318,28 +317,20 @@ async function testE2ESyncGetters() {
 
   let res = await mcpCall(mcp, 'get_theme', {})
   const themeData = JSON.parse(res.result.content[0].text)
-  assert(themeData.status === 'ok', `get_theme: delivery ok`)
-  assert(themeData.result !== undefined, 'get_theme: has result field (browser data)')
-  if (themeData.result) {
-    assert(themeData.result.type === '3d-viewer', 'get_theme: correct type')
-    assert(themeData.result.command === 'getTheme', 'get_theme: correct command')
-    assert(themeData.result.status === 'success', 'get_theme: browser success')
-    assert(typeof themeData.result.data?.theme === 'string', 'get_theme: theme is string')
-  }
+  assert(themeData.status === 'success', `get_theme: ${themeData.status}`)
+  assert(themeData.type === '3d-viewer', 'get_theme: correct type')
+  assert(themeData.command === 'getTheme', 'get_theme: correct command')
+  assert(typeof themeData.data?.theme === 'string', 'get_theme: theme is string')
 
   res = await mcpCall(mcp, 'get_language', {})
   const langData = JSON.parse(res.result.content[0].text)
-  assert(langData.status === 'ok', 'get_language: delivery ok')
-  if (langData.result) {
-    assert(typeof langData.result.data?.language === 'string', 'get_language: language is string')
-  }
+  assert(langData.status === 'success', 'get_language: delivery ok')
+  assert(typeof langData.data?.language === 'string', 'get_language: language is string')
 
   res = await mcpCall(mcp, 'get_env', {})
   const envData = JSON.parse(res.result.content[0].text)
-  assert(envData.status === 'ok', 'get_env: delivery ok')
-  if (envData.result) {
-    assert(typeof envData.result.data?.env === 'string', 'get_env: env is string')
-  }
+  assert(envData.status === 'success', 'get_env: delivery ok')
+  assert(typeof envData.data?.env === 'string', 'get_env: env is string')
 
   mcp.stdin.end()
   await browser.close()
@@ -362,7 +353,7 @@ async function testE2EErrorRecovery() {
 
   res = await mcpCall(mcp, 'get_theme', {})
   const data = JSON.parse(res.result.content[0].text)
-  assert(data.status === 'ok', 'valid tool after error: still works')
+  assert(data.status === 'success', 'valid tool after error: still works')
 
   mcp.stdin.end()
   await browser.close()
@@ -407,25 +398,25 @@ async function testE2EMultiCommand() {
 // Tests — Part 3: Fire-and-forget vs Sync (direct HTTP API)
 // ============================================================
 
-async function testFireAndForgetMode() {
-  console.log('\n--- HTTP API: fire-and-forget mode (no id) ---')
+async function testAutoIdMode() {
+  console.log('\n--- HTTP API: auto-id mode (no id provided) ---')
   const server = await startServer()
 
-  // Connect SSE so commands can be delivered
-  const sseCtrl = new AbortController()
-  await fetch(`http://localhost:${server.port}/api/events`, { signal: sseCtrl.signal })
-  await sleep(500)
+  const browser = await chromium.launch({ headless: true })
+  const page = await browser.newPage()
+  await page.goto(`http://localhost:${server.port}/#/workspace`, { waitUntil: 'load', timeout: 15000 })
+  await sleep(2000)
 
-  // POST without id → fire-and-forget, returns immediately
+  // POST without id → auto-generates id, returns sync result
   const { status, body } = await httpPost(`http://localhost:${server.port}/api/command`, {
     type: '3d-viewer', command: 'getTheme',
   })
   assert(status === 200, `status 200 (got ${status})`)
-  assert(body.status === 'ok', `body.status ok (got ${body.status})`)
-  assert(body.delivered === 1, `delivered 1 (got ${body.delivered})`)
-  assert(body.result === undefined, 'no result field (fire-and-forget)')
+  assert(body.status === 'success', `body.status success (got ${body.status})`)
+  assert(body._warning !== undefined, 'has _warning field (auto-generated id)')
+  assert(typeof body.data?.theme === 'string', 'has theme data')
 
-  sseCtrl.abort()
+  await browser.close()
   stopServer(server)
 }
 
@@ -443,14 +434,9 @@ async function testSyncMode() {
     type: '3d-viewer', id: 'sync-test-001', command: 'getTheme',
   })
   assert(status === 200, `status 200 (got ${status})`)
-  assert(body.status === 'ok', `body.status ok (got ${body.status})`)
-  assert(body.delivered >= 1, `delivered >= 1 (got ${body.delivered})`)
-  assert(body.result !== undefined, 'has result field (sync mode)')
-  if (body.result) {
-    assert(body.result.type === '3d-viewer', `result.type = ${body.result.type}`)
-    assert(body.result.command === 'getTheme', `result.command = ${body.result.command}`)
-    assert(body.result.status === 'success', `result.status = ${body.result.status}`)
-  }
+  assert(body.status === 'success', `body.status success (got ${body.status})`)
+  assert(body.type === '3d-viewer', `body.type = ${body.type}`)
+  assert(body.command === 'getTheme', `body.command = ${body.command}`)
 
   await browser.close()
   stopServer(server)
@@ -482,7 +468,7 @@ async function main() {
   await testE2EMultiCommand()
 
   // Part 4: HTTP API modes
-  await testFireAndForgetMode()
+  await testAutoIdMode()
   await testSyncMode()
 
   console.log(`\n${'='.repeat(50)}`)

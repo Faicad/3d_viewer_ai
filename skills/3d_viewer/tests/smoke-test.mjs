@@ -224,24 +224,40 @@ async function testServeMJS() {
       const body = await resp.json()
       assert(resp.status === 503, `POST /api/command (no client) status 503 (got ${resp.status})`)
       assert(body.status === 'error', `POST /api/command (no client) status error (got ${body.status})`)
-      assert(body.delivered === 0, `POST /api/command (no client) delivered 0 (got ${body.delivered})`)
+      assert(body.error === 'No connected clients', 'error message matches')
     }
 
-    // 2e. POST /api/command with SSE client → 200
+    // 2e. POST /api/command with SSE client → 200 (async, /api/result callback)
     {
       const ac = new AbortController()
       const sseResp = await fetch(`${base}/api/events`, { signal: ac.signal })
       assert(sseResp.status === 200, 'SSE connection established')
 
-      const resp = await fetch(`${base}/api/command`, {
+      // Fire command (async) — server registers pending request & awaits /api/result
+      const cmdFetch = fetch(`${base}/api/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: '3d-viewer', command: 'getTheme', params: {} }),
+        body: JSON.stringify({ type: '3d-viewer', id: 'test-001', command: 'getTheme', params: {} }),
       })
+
+      // Brief pause so server can register the pending request
+      await new Promise(r => setTimeout(r, 100))
+
+      // Simulate browser: POST execution result back to server
+      await fetch(`${base}/api/result`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'test-001',
+          data: { type: '3d-viewer', id: 'test-001', command: 'getTheme', status: 'success', data: { theme: 'dark' } },
+        }),
+      })
+
+      const resp = await cmdFetch
       const body = await resp.json()
       assert(resp.status === 200, `POST /api/command (with client) status 200 (got ${resp.status})`)
-      assert(body.status === 'ok', `POST /api/command (with client) status ok (got ${body.status})`)
-      assert(body.delivered > 0, `POST /api/command (with client) delivered > 0 (got ${body.delivered})`)
+      assert(body.status === 'success', `POST /api/command (with client) status success (got ${body.status})`)
+      assert(body.data?.theme === 'dark', 'response contains browser result data')
       ac.abort()
     }
 

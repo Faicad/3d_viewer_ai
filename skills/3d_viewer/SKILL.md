@@ -64,11 +64,11 @@ The HTTP service is a long-running process and must be started in the background
 
 Default port is **4273** (use `PORT=4174 node ...` to specify a different port).
 
-This service also provides an **HTTP API** for AI to remotely control the viewer via `curl`:
+This service also provides an **HTTP API** for AI to remotely control the viewer via `curl` (always include `id` so the server returns the synchronous result):
 ```bash
 curl -X POST http://localhost:4273/api/command \
   -H "Content-Type: application/json" \
-  -d '{"type":"3d-viewer","command":"setTheme","params":{"value":"dark"}}'
+  -d '{"type":"3d-viewer","id":"req-001","command":"setTheme","params":{"value":"dark"}}'
 ```
 The browser receives commands in real-time via SSE (`/api/events`). See Step 5 below for details.
 
@@ -101,16 +101,16 @@ node "<skill_dir>/scripts/mcp-server.mjs"
 The MCP server automatically connects to the running `serve.mjs`. See `docs/AI_CONTROL_API.md` for the full tool list.
 
 **Method B: HTTP API**
-Send commands to `serve.mjs` via `curl`, pushed to the browser through SSE:
+Send commands to `serve.mjs` via `curl`, pushed to the browser through SSE (always include `id` for synchronous result):
 ```bash
 curl -X POST http://localhost:4273/api/command \
   -H "Content-Type: application/json" \
-  -d '{"type":"3d-viewer","command":"setTheme","params":{"value":"dark"}}'
+  -d '{"type":"3d-viewer","id":"req-001","command":"setTheme","params":{"value":"dark"}}'
 ```
 
 **Method C: postMessage (requires browser JS execution)**
 ```js
-window.postMessage({ type: '3d-viewer', command: 'setTheme', params: { value: 'dark' } }, '*')
+window.postMessage({ type: '3d-viewer', id: 'req-001', command: 'setTheme', params: { value: 'dark' } }, '*')
 ```
 
 ### Step 6: Cleanup
