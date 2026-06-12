@@ -20,9 +20,9 @@ node <skill_dir>/scripts/serve.mjs
 # 打开 http://localhost:4273/#/workspace?url=./models/model.stl
 ```
 
-支持格式：GLB、glTF、STEP、STP、STL、OBJ、3MF、FBX、PLY，以及其他 Three.js 支持的格式。
+支持格式：GLB、glTF、STEP、STP、STL、OBJ、3MF、FBX、PLY、SCAD，以及其他 Three.js 支持的格式。
 
-STEP/STP 文件在加载时自动通过 OCCT WASM 转换为 GLB 再渲染。
+STEP/STP 文件在加载时自动通过 OCCT WASM 转换为 GLB 再渲染。SCAD 文件通过 openscad-wasm 编译为 STL 后渲染。
 
 HDR/EXR 环境贴图同样处理（复制到 `models/` 后通过 `loadEnvFile` 命令加载）。
 
@@ -123,7 +123,8 @@ window.postMessage({
 
 | 命令 | 参数 | 说明 | 状态 |
 |------|------|------|------|
-| `loadModel` | `{ url: string }` 或 `{ data: string }` | 从 URL 或 base64 data URL 加载模型。STEP 自动转换为 GLB | ✅ 已实现 |
+| `loadModel` | `{ url: string }` 或 `{ data: string }` | 从 URL 或 base64 data URL 加载模型。STEP 自动转换为 GLB，SCAD 自动编译为 STL | ✅ 已实现 |
+| `generateScadModel` | `{ code: string, name?: string, mode?: 'replace' \| 'append' }` | AI 发送 OpenSCAD 代码字符串，前端编译为 STL 并显示 | ✅ 已实现 |
 | `getModelInfo` | — | 获取当前模型信息（fileName、format、partCount、parts、animations） | ✅ 已实现 |
 | `resetViewer` | — | 清空场景、清除选中、重置动画状态 | ✅ 已实现 |
 
@@ -340,7 +341,78 @@ SSE handler `await` 异步结果，阻塞直到模型完全加载后返回：
 
 ---
 
-## 六、AI 完整调用流程
+## 六、generateScadModel 命令详解
+
+通过 OpenSCAD 代码生成 3D 模型。前端在 Web Worker 中加载 openscad-wasm 引擎（本地优先，CDN 回退），将 SCAD 编译为 STL 后通过现有渲染管线显示。
+
+### 请求
+
+```js
+{
+  type: '3d-viewer',
+  id: 'gen-1',
+  command: 'generateScadModel',
+  params: {
+    code: "difference() { cube([10,20,30], center=true); cylinder(r=5, h=35, center=true); }",
+    name: 'my-part',
+    mode: 'replace'
+  }
+}
+```
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `code` | string | **是** | — | OpenSCAD 源代码 |
+| `name` | string | 否 | `"generated-model"` | 场景树中显示的模型名称 |
+| `mode` | `"replace"` \| `"append"` | 否 | `"replace"` | `replace` 清空现有模型后加载，`append` 追加到场景 |
+
+### 响应（SSE/HTTP 通道）
+
+```json
+{
+  "status": "success",
+  "data": {
+    "fileId": "uuid-xxx",
+    "fileName": "my-part.stl",
+    "format": "stl",
+    "triangleCount": 2188,
+    "renderMs": 501
+  }
+}
+```
+
+### 执行流程
+
+1. Skill/AI 生成 OpenSCAD 代码
+2. `generateScadModel` 命令 → Web Worker 加载 openscad-wasm
+3. Worker 调用 `callMain` 将 SCAD 编译为 binary STL
+4. STL buffer 通过现有 `loadFormat('stl')` 管线渲染
+5. `callMain` 为 single-shot（调用后 WASM 状态损坏），每次编译后 Worker terminate
+
+### 典型场景
+
+```bash
+# Skill 生成一个 M8 螺栓
+curl -X POST http://localhost:4273/api/command \
+  -H "Content-Type: application/json" \
+  -d '{"type":"3d-viewer","id":"gen-1","command":"generateScadModel","params":{
+    "code": "module hex_bolt(d=8,l=40){cylinder(r=d/2,h=l,$fn=6);} hex_bolt();",
+    "name": "M8-bolt"
+  }}'
+
+# 追加齿轮到场景
+curl -X POST http://localhost:4273/api/command \
+  -H "Content-Type: application/json" \
+  -d '{"type":"3d-viewer","id":"gen-2","command":"generateScadModel","params":{
+    "code": "difference(){cylinder(r=20,h=5,$fn=50);for(i=[0:7])rotate([0,0,i*45])translate([15,0,-1])cylinder(r=3,h=7,$fn=20);}",
+    "name": "gear",
+    "mode": "append"
+  }}'
+```
+
+---
+
+## 七、AI 完整调用流程
 
 ```bash
 # 1. 复制文件到服务目录
