@@ -46,7 +46,7 @@ cp "<model_file_path>" <skill_dir>/models/
 
 ### Step 3: Start local HTTP server (run in background, do NOT set timeout)
 
-Choose the appropriate method for your OS:
+> Before starting, check if port 4273 is in use. If occupied and first run, kill the occupying process first.
 
 **Windows:**
 ```powershell
